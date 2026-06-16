@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LIMINAL — Dreamcore Asset Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+</head>
+<body>
+  <div id="boot-screen">
+    <div class="boot-inner">
+      <pre class="boot-logo">
+   ▄▄▄       ▄▄▄
+  █   █     █   █
+  █   █     █   █
+  █▄▄▄█     █▄▄▄█
+      </pre>
+      <div class="boot-title">LIMINAL</div>
+      <div class="boot-sub">dreamcore asset generator</div>
+      <div class="boot-log" id="boot-log"></div>
+      <button id="boot-enter">[ ENTER ]</button>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◳</span> LIMINAL
+      <span class="brand-tag">v0.3 // dreamcore asset gen</span>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="background">01 — BACKGROUND</button>
+      <button class="tab" data-tab="entity">02 — ENTITIES</button>
+      <button class="tab" data-tab="audio">03 — AUDIO</button>
+    </nav>
+  </header>
+
+  <main class="workspace">
+    <!-- ============ STAGE / CANVAS ============ -->
+    <section class="stage">
+      <div class="stage-frame">
+        <div id="canvas-host"></div>
+        <div class="stage-overlay">
+          <span class="stage-label" id="stage-label">SIGNAL // BACKGROUND</span>
+          <span class="stage-rec">● REC</span>
+        </div>
+        <div class="scanlines"></div>
+      </div>
+      <div class="stage-foot">
+        <span id="stage-status">ready.</span>
+        <span class="stage-seed">SEED <em id="stage-seed">0000</em></span>
+      </div>
+    </section>
+
+    <!-- ============ CONTROL PANEL ============ -->
+    <aside class="panel">
+      <!-- BACKGROUND PANEL -->
+      <div class="panel-page active" data-panel="background">
+        <div class="panel-head">
+          <h2>Background</h2>
+          <p>Liminale Räume. Endlose Korridore. Verlassene Zwischenwelten.</p>
+        </div>
+
+        <div class="prompt-row">
+          <label>PROMPT / STIMMUNG</label>
+          <input type="text" id="bg-prompt" placeholder="z.B. flooded pink hallway, balloons, fog" value="endless yellow rooms">
+          <button class="apply-btn" id="bg-apply">→ INTERPRET</button>
+        </div>
+
+        <div class="preset-row" id="bg-presets">
+          <button class="chip active" data-preset="backrooms">backrooms</button>
+          <button class="chip" data-preset="poolrooms">poolrooms</button>
+          <button class="chip" data-preset="ballroom">pink ballroom</button>
+          <button class="chip" data-preset="rainbow">rainbow play-zone</button>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Hue / Palette</span><em id="bg-hue-v">50</em></div>
+          <input type="range" id="bg-hue" min="0" max="360" value="50">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Depth / Korridortiefe</span><em id="bg-depth-v">7</em></div>
+          <input type="range" id="bg-depth" min="2" max="14" value="7">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Light Decay</span><em id="bg-light-v">0.55</em></div>
+          <input type="range" id="bg-light" min="0" max="100" value="55">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Film Grain</span><em id="bg-grain-v">0.40</em></div>
+          <input type="range" id="bg-grain" min="0" max="100" value="40">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Fog / Haze</span><em id="bg-fog-v">0.30</em></div>
+          <input type="range" id="bg-fog" min="0" max="100" value="30">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Geometry</span></div>
+          <div class="seg" id="bg-geo">
+            <button class="seg-btn active" data-v="corridor">corridor</button>
+            <button class="seg-btn" data-v="pillars">pillars</button>
+            <button class="seg-btn" data-v="void">void room</button>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn-ghost" id="bg-regen">⟳ REGENERATE</button>
+          <button class="btn-solid" id="bg-save">↓ SAVE PNG</button>
+        </div>
+      </div>
+
+      <!-- ENTITY PANEL -->
+      <div class="panel-page" data-panel="entity">
+        <div class="panel-head">
+          <h2>Entities</h2>
+          <p>Spielfiguren & Monster. Augen die zurückstarren.</p>
+        </div>
+
+        <div class="prompt-row">
+          <label>PROMPT / WESEN</label>
+          <input type="text" id="ent-prompt" placeholder="z.B. tall watcher, many eyes, thin limbs" value="eyed blob creature">
+          <button class="apply-btn" id="ent-apply">→ INTERPRET</button>
+        </div>
+
+        <div class="preset-row" id="ent-presets">
+          <button class="chip active" data-preset="watcher">watcher</button>
+          <button class="chip" data-preset="blob">eye-blob</button>
+          <button class="chip" data-preset="crawler">crawler</button>
+          <button class="chip" data-preset="player">player avatar</button>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Body Mass</span><em id="ent-mass-v">0.6</em></div>
+          <input type="range" id="ent-mass" min="10" max="100" value="60">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Limbs</span><em id="ent-limbs-v">2</em></div>
+          <input type="range" id="ent-limbs" min="0" max="8" value="2">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Limb Length</span><em id="ent-limblen-v">0.7</em></div>
+          <input type="range" id="ent-limblen" min="10" max="100" value="70">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Eyes</span><em id="ent-eyes-v">9</em></div>
+          <input type="range" id="ent-eyes" min="0" max="24" value="9">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Eye Tracking</span><em id="ent-track-v">on</em></div>
+          <div class="seg" id="ent-track">
+            <button class="seg-btn active" data-v="1">track cursor</button>
+            <button class="seg-btn" data-v="0">static</button>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Silhouette</span></div>
+          <div class="seg" id="ent-shape">
+            <button class="seg-btn active" data-v="blob">blob</button>
+            <button class="seg-btn" data-v="tall">tall</button>
+            <button class="seg-btn" data-v="humanoid">humanoid</button>
+          </div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Dither / Render</span></div>
+          <div class="seg" id="ent-render">
+            <button class="seg-btn active" data-v="solid">solid</button>
+            <button class="seg-btn" data-v="dither">1-bit dither</button>
+            <button class="seg-btn" data-v="grain">photo-grain</button>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn-ghost" id="ent-regen">⟳ REGENERATE</button>
+          <button class="btn-solid" id="ent-save">↓ SAVE PNG</button>
+        </div>
+      </div>
+
+      <!-- AUDIO PANEL -->
+      <div class="panel-page" data-panel="audio">
+        <div class="panel-head">
+          <h2>Audio</h2>
+          <p>Prozedurale Drones. Das Summen leerer Räume.</p>
+        </div>
+
+        <div class="preset-row" id="aud-presets">
+          <button class="chip active" data-preset="backrooms">backrooms hum</button>
+          <button class="chip" data-preset="dream">dreamcore pad</button>
+          <button class="chip" data-preset="dread">deep dread</button>
+          <button class="chip" data-preset="pool">poolrooms</button>
+        </div>
+
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Base Pitch (Hz)</span><em id="aud-pitch-v">60</em></div>
+          <input type="range" id="aud-pitch" min="30" max="220" value="60">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Hum / Buzz</span><em id="aud-hum-v">0.5</em></div>
+          <input type="range" id="aud-hum" min="0" max="100" value="50">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Noise Floor</span><em id="aud-noise-v">0.25</em></div>
+          <input type="range" id="aud-noise" min="0" max="100" value="25">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Reverb / Space</span><em id="aud-verb-v">0.7</em></div>
+          <input type="range" id="aud-verb" min="0" max="100" value="70">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Wobble / Detune</span><em id="aud-wob-v">0.2</em></div>
+          <input type="range" id="aud-wob" min="0" max="100" value="20">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Pad Shimmer</span><em id="aud-pad-v">0.3</em></div>
+          <input type="range" id="aud-pad" min="0" max="100" value="30">
+        </div>
+
+        <div class="vu"><div class="vu-bar" id="aud-vu"></div></div>
+
+        <div class="action-row">
+          <button class="btn-solid wide" id="aud-toggle">▶ START SIGNAL</button>
+        </div>
+        <p class="audio-note">Audio läuft live. Bewege die Slider während es spielt.</p>
+      </div>
+    </aside>
+  </main>
+
+  <script src="background.js"></script>
+  <script src="entity.js"></script>
+  <script src="audio.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
