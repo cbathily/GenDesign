@@ -296,6 +296,9 @@ function bindAudio(){
   bind('aud-verb','verb',v=>v.toFixed(2));
   bind('aud-wob','wob',v=>v.toFixed(2));
   bind('aud-pad','pad',v=>v.toFixed(2));
+  bind('aud-mood','mood',v=>v.toFixed(2));
+  bind('aud-melody','melody',v=>v.toFixed(2));
+  bind('aud-speed','speed',v=>v.toFixed(2));
 
   bindChips('aud-presets',name=>{audApplyPreset(name); syncAudUI(); setStatus('audio preset: '+name);});
 
@@ -313,7 +316,7 @@ function bindAudio(){
   });
 }
 function syncAudUI(){
-  const m={pitch:'aud-pitch',hum:'aud-hum',noise:'aud-noise',verb:'aud-verb',wob:'aud-wob',pad:'aud-pad'};
+  const m={pitch:'aud-pitch',hum:'aud-hum',noise:'aud-noise',verb:'aud-verb',wob:'aud-wob',pad:'aud-pad',mood:'aud-mood',melody:'aud-melody',speed:'aud-speed'};
   for(const k in m){
     const el=$('#'+m[k]); const out=$('#'+m[k]+'-v');
     if(k==='pitch'){el.value=AUD[k]; out.textContent=AUD[k];}
