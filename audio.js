@@ -1,191 +1,422 @@
 /* ============================================================
-   AUDIO GENERATOR  (Tone.js)
-   - Drone-Oszillatoren + Wobble-LFO
-   - 60Hz-Summen / Buzz
-   - gefiltertes Rauschen
-   - großer Reverb
-   - schimmernder Pad-Akkord
-   - prozedurale Melodie: Creepy ↔ Dreamcore
-   ============================================================ */
+   HORROR ATMOSPHERE MIXER — Local Audio Files Only
+   - Layered audio playback (up to 3 simultaneous)
+   - Real audio files from sounds/ directory
+   - Volume control per layer
+   - Random atmosphere generation
+============================================================ */
 
-const AUD = {
-  pitch:60, hum:0.5, noise:0.25, verb:0.7, wob:0.2, pad:0.3,
-  melody:0.45, mood:0.25, speed:0.4,
-  preset:'backrooms', running:false,
+const AUDIO_CONFIG = {
+  sounds: {
+    ambience: [
+      { file: 'sounds/ambience/wind.wav', name: 'Wind' },
+      { file: 'sounds/ambience/rain.mp3', name: 'Rain' },
+      { file: 'sounds/ambience/forest.m4a', name: 'Forest' },
+      { file: 'sounds/ambience/rumble.wav', name: 'Rumble' },
+      { file: 'sounds/ambience/abandoned_place.wav', name: 'Abandoned Place' },
+      { file: 'sounds/ambience/dream_core1.mp3', name: 'Dream Core 1' },
+      { file: 'sounds/ambience/dream_core2.ogg', name: 'Dream Core 2' },
+      { file: 'sounds/ambience/orchestral.wav', name: 'Orchestral' },
+      { file: 'sounds/ambience/haunting_piano.wav', name: 'Haunting Piano' },
+    ],
+    tension: [
+      { file: 'sounds/tension/heartbeat.wav', name: 'Heartbeat' },
+      { file: 'sounds/tension/deep_bass.wav', name: 'Deep Bass' },
+      { file: 'sounds/tension/drone_and_cackling.wav', name: 'Drone & Cackling' },
+      { file: 'sounds/tension/metal_screech.wav', name: 'Metal Screech' },
+    ],
+    events: [
+      { file: 'sounds/events/footsteps.wav', name: 'Footsteps' },
+      { file: 'sounds/events/whisper.wav', name: 'Whisper' },
+    ],
+  }
 };
 
-const AUD_PRESETS = {
-  backrooms: {pitch:60,  hum:0.6, noise:0.3,  verb:0.7,  wob:0.15, pad:0.2,  melody:0.3,  mood:0.1,  speed:0.3},
-  dream:     {pitch:110, hum:0.2, noise:0.15, verb:0.85, wob:0.35, pad:0.6,  melody:0.75, mood:0.9,  speed:0.55},
-  dread:     {pitch:38,  hum:0.5, noise:0.2,  verb:0.9,  wob:0.1,  pad:0.15, melody:0.5,  mood:0.0,  speed:0.2},
-  pool:      {pitch:90,  hum:0.25,noise:0.45, verb:0.95, wob:0.25, pad:0.4,  melody:0.55, mood:0.5,  speed:0.45},
+// Track open dropdowns
+const DROPDOWN_STATE = {
+  ambience: false,
+  tension: false,
+  events: false
 };
 
-// Semitone offsets above root — 3 Stimmungsstufen
-const _MEL_SCALES = [
-  [0, 1, 3, 6, 8, 10],         // creepy:  Phrygisch + Tritonus-Spannung
-  [0, 2, 3, 5, 7, 8, 10],      // liminal: natürliches Moll
-  [0, 2, 4, 7, 9, 12, 14],     // dreamcore: Dur-Pentatonik + Oktaverweiterung
-];
+const AUDIO_STATE = {
+  layers: [null, null, null],         // max 3 layers
+  howlers: [null, null, null],         // Howler instances
+  volumes: [100, 100, 100],            // volume per layer
+  muted: [false, false, false],         // mute state
+};
 
-let _A = null;
-
-function audApplyPreset(name){
-  const p = AUD_PRESETS[name]; if(!p) return;
-  Object.assign(AUD, p, {preset:name});
-  if(AUD.running) audUpdate();
+function log(msg) {
+  console.log(`[AUDIO] ${msg}`);
 }
 
-function _melNotes(){
-  const root = AUD.pitch * 2;
-  const tier = AUD.mood < 0.35 ? 0 : AUD.mood < 0.65 ? 1 : 2;
-  return _MEL_SCALES[tier].map(s => root * Math.pow(2, s / 12));
+function err(msg) {
+  console.error(`[AUDIO ERROR] ${msg}`);
 }
 
-function _melInterval(){
-  const steps = ['2m','1m','2n.','2n','4n','8n'];
-  return steps[Math.round((1 - AUD.speed) * (steps.length - 1))];
-}
+/* ============================================================
+   LAYER MANAGEMENT
+============================================================ */
 
-function _melDur(){
-  return AUD.mood < 0.35 ? '16n' : AUD.mood < 0.65 ? '8n' : '4n';
-}
+function playSound(soundFile, soundName, layerIndex) {
+  if (layerIndex < 0 || layerIndex >= 3) return;
 
-async function audStart(){
-  await Tone.start();
-  if(_A) return;
+  // Stop existing sound in this layer
+  stopLayer(layerIndex);
 
-  const reverb  = new Tone.Reverb({decay:8, wet:AUD.verb}).toDestination();
-  const master  = new Tone.Gain(0.0).connect(reverb);
-
-  // --- drone ---
-  const d1 = new Tone.Oscillator(AUD.pitch, 'sine').start();
-  const d2 = new Tone.Oscillator(AUD.pitch * 1.005, 'triangle').start();
-  const droneGain = new Tone.Gain(0.5).connect(master);
-  d1.connect(droneGain); d2.connect(droneGain);
-
-  // --- hum/buzz ---
-  const hum     = new Tone.Oscillator(AUD.pitch, 'square').start();
-  const humFilt = new Tone.Filter(200, 'lowpass');
-  const humGain = new Tone.Gain(AUD.hum * 0.12).connect(master);
-  hum.connect(humFilt); humFilt.connect(humGain);
-
-  // --- noise floor ---
-  const noise = new Tone.Noise('brown').start();
-  const nFilt = new Tone.Filter(800, 'lowpass');
-  const nGain = new Tone.Gain(AUD.noise * 0.18).connect(master);
-  noise.connect(nFilt); nFilt.connect(nGain);
-
-  // --- pad shimmer ---
-  const pad = new Tone.PolySynth(Tone.Synth, {
-    oscillator:{type:'fatsine'},
-    envelope:{attack:4, decay:2, sustain:0.8, release:6}
-  });
-  const padGain = new Tone.Gain(AUD.pad * 0.08).connect(reverb);
-  pad.connect(padGain);
-  const padLoop = new Tone.Loop(time => {
-    const root = AUD.pitch * 2;
-    pad.triggerAttackRelease([root, root * 1.2, root * 1.5], '2m', time);
-  }, '2m').start(0);
-
-  // --- wobble LFO ---
-  const lfo = new Tone.LFO({frequency:0.08, min:-15, max:15}).start();
-  lfo.connect(d2.detune);
-
-  // --- MELODIE ---
-  // Filtert dunkel (creepy) → hell (dreamcore)
-  const melFilt = new Tone.Filter(600, 'lowpass').connect(master);
-  // Ping-Pong-Delay für Dreamcore-Shimmer (wet=0 bei creepy)
-  const melDelay = new Tone.PingPongDelay({
-    delayTime:'8n.', feedback:0.32, wet:0
-  }).connect(melFilt);
-  const melGain  = new Tone.Gain(AUD.melody * 0.18).connect(melDelay);
-  const melSynth = new Tone.PolySynth(Tone.Synth, {
-    oscillator:{type:'triangle'},
-    envelope:{attack:0.05, decay:0.4, sustain:0.3, release:1.5}
-  });
-  melSynth.connect(melGain);
-
-  const melLoop = new Tone.Loop(time => {
-    // creepy → sehr sparsame Noten (oft Stille)
-    if(AUD.mood < 0.3 && Math.random() > 0.35) return;
-    const notes = _melNotes();
-    const pick  = () => notes[Math.floor(Math.random() * notes.length)];
-    melSynth.triggerAttackRelease(pick(), _melDur(), time);
-    // dreamcore → gelegentlich zweite Note für Harmonik
-    if(AUD.mood > 0.6 && Math.random() > 0.5){
-      const offset = Tone.Time('32n').toSeconds();
-      melSynth.triggerAttackRelease(pick(), _melDur(), time + offset);
-    }
-  }, _melInterval()).start('+1m');
-
-  Tone.Transport.start();
-  master.gain.rampTo(0.5, 2);
-
-  _A = {
-    reverb, master,
-    d1, d2, droneGain,
-    hum, humFilt, humGain,
-    noise, nFilt, nGain,
-    pad, padGain, padLoop,
-    lfo,
-    melSynth, melGain, melDelay, melFilt, melLoop,
-  };
-  AUD.running = true;
-  audUpdate();
-}
-
-function audStop(){
-  if(!_A) return;
-  _A.master.gain.rampTo(0, 1.2);
-  setTimeout(() => {
-    try{
-      _A.d1.stop(); _A.d2.stop(); _A.hum.stop(); _A.noise.stop();
-      _A.lfo.stop(); _A.padLoop.stop(); _A.melLoop.stop();
-      Tone.Transport.stop();
-      _A.reverb.dispose(); _A.master.dispose();
-      _A.melDelay.dispose(); _A.melFilt.dispose();
-    }catch(e){}
-    _A = null; AUD.running = false;
-  }, 1300);
-}
-
-function audUpdate(){
-  if(!_A) return;
-
-  // Atmosphäre
-  _A.d1.frequency.rampTo(AUD.pitch, 0.3);
-  _A.d2.frequency.rampTo(AUD.pitch * 1.005, 0.3);
-  _A.hum.frequency.rampTo(AUD.pitch, 0.3);
-  _A.humGain.gain.rampTo(AUD.hum   * 0.12, 0.2);
-  _A.nGain.gain.rampTo(AUD.noise   * 0.18, 0.2);
-  _A.padGain.gain.rampTo(AUD.pad   * 0.08, 0.3);
-  _A.reverb.wet.rampTo(AUD.verb, 0.4);
-  _A.lfo.frequency.rampTo(0.05 + AUD.wob * 0.6, 0.3);
-  _A.lfo.min = -AUD.wob * 40; _A.lfo.max = AUD.wob * 40;
-
-  // Melodie — morpht mit mood
-  const m = AUD.mood;
-  _A.melGain.gain.rampTo(AUD.melody * 0.18, 0.3);
-  // Filter: dunkel+dumpf (creepy) → offen+hell (dreamcore)
-  _A.melFilt.frequency.rampTo(300 + m * 5500, 0.5);
-  // Ping-Pong-Delay nur bei dreamcore
-  _A.melDelay.wet.rampTo(m * 0.48, 0.5);
-  // Tempo
-  _A.melLoop.interval = _melInterval();
-  // Envelope: kurze Stabs (creepy) → lange schwebende Noten (dreamcore)
-  _A.melSynth.set({
-    envelope:{
-      attack:  0.02 + m * 2.8,
-      decay:   0.3  + m * 0.6,
-      sustain: 0.1  + m * 0.7,
-      release: 0.6  + m * 5.5,
+  // Create new Howler instance
+  const howl = new Howl({
+    src: [soundFile],
+    html5: true,
+    autoplay: true,
+    loop: true,
+    volume: AUDIO_STATE.volumes[layerIndex] / 100,
+    onload: () => {
+      log(`✓ Loaded: ${soundName}`);
+      updateLayerUI(layerIndex);
+    },
+    onerror: () => {
+      err(`Failed to load: ${soundFile}`);
     }
   });
+
+  AUDIO_STATE.howlers[layerIndex] = howl;
+  AUDIO_STATE.layers[layerIndex] = { file: soundFile, name: soundName };
+
+  updateLayerUI(layerIndex);
+  updateStatus();
+  renderAudioPanel();
 }
 
-function audLevel(){
-  if(!_A) return 0;
-  const base = (AUD.hum * 0.3 + AUD.noise * 0.3 + AUD.melody * 0.3 + 0.3);
-  return Math.min(1, base * (0.7 + Math.random() * 0.4));
+function stopLayer(layerIndex) {
+  if (layerIndex < 0 || layerIndex >= 3) return;
+
+  const howl = AUDIO_STATE.howlers[layerIndex];
+  if (howl) {
+    howl.stop();
+    howl.unload();
+  }
+
+  AUDIO_STATE.howlers[layerIndex] = null;
+  AUDIO_STATE.layers[layerIndex] = null;
+  AUDIO_STATE.muted[layerIndex] = false;
+
+  updateLayerUI(layerIndex);
+  updateStatus();
+  renderAudioPanel();
+}
+
+function togglePlayPause(layerIndex) {
+  if (layerIndex < 0 || layerIndex >= 3) return;
+  const howl = AUDIO_STATE.howlers[layerIndex];
+  if (!howl) return;
+
+  if (howl.playing()) {
+    howl.pause();
+  } else {
+    howl.play();
+  }
+  updateLayerUI(layerIndex);
+}
+
+function toggleMute(layerIndex) {
+  if (layerIndex < 0 || layerIndex >= 3) return;
+  const howl = AUDIO_STATE.howlers[layerIndex];
+  if (!howl) return;
+
+  AUDIO_STATE.muted[layerIndex] = !AUDIO_STATE.muted[layerIndex];
+  howl.mute(AUDIO_STATE.muted[layerIndex]);
+  updateLayerUI(layerIndex);
+}
+
+function setVolume(layerIndex, volume) {
+  if (layerIndex < 0 || layerIndex >= 3) return;
+  AUDIO_STATE.volumes[layerIndex] = Math.max(0, Math.min(100, volume));
+
+  const howl = AUDIO_STATE.howlers[layerIndex];
+  if (howl) {
+    howl.volume(AUDIO_STATE.volumes[layerIndex] / 100);
+  }
+  updateLayerUI(layerIndex);
+}
+
+function stopAllLayers() {
+  for (let i = 0; i < 3; i++) {
+    stopLayer(i);
+  }
+  updateStatus();
+}
+
+/* ============================================================
+   RANDOMIZE ATMOSPHERE
+============================================================ */
+
+function generateRandomAtmosphere() {
+  stopAllLayers();
+
+  const categories = ['ambience', 'tension', 'events'];
+  const layerCount = Math.floor(Math.random() * 3) + 1; // 1-3 layers
+
+  // Pick random sounds from different categories
+  const pickedCategories = [];
+  for (let i = 0; i < layerCount; i++) {
+    let category;
+    do {
+      category = categories[Math.floor(Math.random() * categories.length)];
+    } while (pickedCategories.includes(category));
+
+    pickedCategories.push(category);
+  }
+
+  // Assign to layers
+  pickedCategories.forEach((category, idx) => {
+    const sounds = AUDIO_CONFIG.sounds[category];
+    const sound = sounds[Math.floor(Math.random() * sounds.length)];
+    playSound(sound.file, sound.name, idx);
+  });
+
+  log(`✓ Generated atmosphere with ${layerCount} layers`);
+  setStatus('atmosphere generated.');
+}
+
+/* ============================================================
+   UI UPDATES
+============================================================ */
+
+function updateLayerUI(layerIndex) {
+  const container = document.querySelector(`[data-layer="${layerIndex}"]`);
+  if (!container) return;
+
+  const layer = AUDIO_STATE.layers[layerIndex];
+  const howl = AUDIO_STATE.howlers[layerIndex];
+  const volume = AUDIO_STATE.volumes[layerIndex];
+  const muted = AUDIO_STATE.muted[layerIndex];
+
+  // Highlight filled layers
+  container.classList.toggle('filled', !!layer);
+
+  // Determine category
+  let category = '';
+  if (layer) {
+    for (const [cat, sounds] of Object.entries(AUDIO_CONFIG.sounds)) {
+      if (sounds.some(s => s.file === layer.file)) {
+        category = cat;
+        break;
+      }
+    }
+  }
+
+  // Display category
+  const catEl = container.querySelector('.layer-category');
+  if (catEl) {
+    catEl.textContent = category ? `[${category.toUpperCase()}]` : '';
+    catEl.style.opacity = category ? '1' : '0.5';
+  }
+
+  // Display sound name
+  const nameEl = container.querySelector('.layer-name');
+  if (nameEl) {
+    nameEl.textContent = layer ? layer.name : '(empty)';
+    nameEl.style.opacity = layer ? '1' : '0.5';
+  }
+
+  // Update play/pause button
+  const playBtn = container.querySelector('.layer-play');
+  if (playBtn && howl) {
+    playBtn.textContent = howl.playing() ? 'PAUSE' : 'PLAY';
+    playBtn.disabled = false;
+  } else if (playBtn) {
+    playBtn.textContent = 'PLAY';
+    playBtn.disabled = true;
+  }
+
+  // Update mute button
+  const muteBtn = container.querySelector('.layer-mute');
+  if (muteBtn) {
+    muteBtn.textContent = muted ? 'UNMUTE' : 'MUTE';
+    muteBtn.disabled = !layer;
+    muteBtn.classList.toggle('muted', muted);
+  }
+
+  // Update volume slider
+  const volSlider = container.querySelector('.layer-volume');
+  if (volSlider) {
+    volSlider.value = volume;
+    volSlider.disabled = !layer;
+  }
+
+  // Update volume display
+  const volDisplay = container.querySelector('.layer-volume-display');
+  if (volDisplay) {
+    volDisplay.textContent = volume + '%';
+  }
+
+  // Update stop button
+  const stopBtn = container.querySelector('.layer-stop');
+  if (stopBtn) {
+    stopBtn.disabled = !layer;
+  }
+}
+
+function updateStatus() {
+  const activeLayers = AUDIO_STATE.layers.filter(l => l !== null).length;
+  const countEl = document.querySelector('.layers-count');
+  if (countEl) {
+    countEl.textContent = `${activeLayers} / 3`;
+    countEl.classList.toggle('has-active', activeLayers > 0);
+  }
+}
+
+function setStatus(msg) {
+  const statusEl = document.getElementById('stage-status');
+  if (statusEl) {
+    statusEl.textContent = msg;
+  }
+}
+
+/* ============================================================
+   DROPDOWN TOGGLE
+============================================================ */
+
+function toggleCategory(category) {
+  DROPDOWN_STATE[category] = !DROPDOWN_STATE[category];
+  renderAudioPanel();
+}
+
+/* ============================================================
+   RENDER SOUND CATEGORY SECTIONS (dropdowns)
+   - Re-renders ONLY the .audio-sections container so the
+     active-layers section above is never touched.
+============================================================ */
+
+function renderAudioPanel() {
+  const panel = document.querySelector('[data-panel="audio"]');
+  if (!panel) return;
+
+  // Find or create the dedicated sections container (don't wipe siblings)
+  let sections = panel.querySelector('.audio-sections');
+  if (!sections) {
+    sections = document.createElement('div');
+    sections.className = 'audio-sections';
+    const actionRow = panel.querySelector('.action-row');
+    actionRow.parentElement.insertBefore(sections, actionRow);
+  }
+
+  sections.innerHTML = ['ambience', 'tension', 'events'].map(category => {
+    const isOpen = DROPDOWN_STATE[category];
+    const soundsHtml = AUDIO_CONFIG.sounds[category].map(sound => {
+      // Is this sound currently loaded in a layer?
+      const activeLayer = AUDIO_STATE.layers.findIndex(l => l && l.file === sound.file);
+      const isActive = activeLayer !== -1;
+      return `
+        <div class="sound-item ${isActive ? 'active' : ''}">
+          <span class="sound-name">${sound.name}</span>
+          ${isActive
+            ? `<button class="play-icon stop" onclick="stopLayer(${activeLayer})">STOP</button>`
+            : `<button class="play-icon" onclick="playInAvailableLayer('${sound.file}', '${sound.name}')">PLAY</button>`
+          }
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="audio-category">
+        <div class="category-header" onclick="toggleCategory('${category}')">
+          <span class="category-chevron" style="transform: rotate(${isOpen ? '90deg' : '0deg'})">></span>
+          <span>${category.toUpperCase()}</span>
+        </div>
+        ${isOpen ? `<div class="category-sounds">${soundsHtml}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function playInAvailableLayer(soundFile, soundName) {
+  let layerIndex = AUDIO_STATE.layers.findIndex(l => l === null);
+  if (layerIndex === -1) {
+    setStatus('all 3 layers full — stop one first.');
+    return;
+  }
+  playSound(soundFile, soundName, layerIndex);
+}
+
+/* ============================================================
+   LAYER CONTROLS HTML
+============================================================ */
+
+function renderLayerControls() {
+  const panel = document.querySelector('[data-panel="audio"]');
+  if (!panel) return;
+
+  let layersContainer = panel.querySelector('.audio-layers');
+  if (!layersContainer) {
+    layersContainer = document.createElement('div');
+    layersContainer.className = 'audio-layers';
+    // Insert before the action-row so it sits BELOW the categories
+    const actionRow = panel.querySelector('.action-row');
+    actionRow.parentElement.insertBefore(layersContainer, actionRow);
+  }
+
+  layersContainer.innerHTML = `
+    <div class="layers-header">ACTIVE LAYERS <span class="layers-count">0 / 3</span></div>
+    ${[0, 1, 2].map(i => `
+      <div class="layer-control" data-layer="${i}">
+        <div class="layer-top">
+          <span class="layer-label">LAYER ${i + 1}</span>
+          <span class="layer-category"></span>
+          <span class="layer-name">(empty)</span>
+        </div>
+        <div class="layer-actions">
+          <button class="layer-play" onclick="togglePlayPause(${i})" disabled>PLAY</button>
+          <button class="layer-mute" onclick="toggleMute(${i})" disabled>MUTE</button>
+          <button class="layer-stop" onclick="stopLayer(${i})" disabled>STOP</button>
+        </div>
+        <div class="layer-volume-control">
+          <input type="range" class="layer-volume" min="0" max="100" value="100" disabled
+                 oninput="setVolume(${i}, this.value)">
+          <span class="layer-volume-display">100%</span>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+/* ============================================================
+   INIT
+============================================================ */
+
+function initAudio() {
+  log('Horror Atmosphere Mixer Ready');
+  log('Loading sound categories...');
+
+  // Order: categories first, then the active-layers section
+  renderAudioPanel();
+  renderLayerControls();
+
+  // Generate button
+  const generateBtn = document.createElement('button');
+  generateBtn.className = 'btn-solid wide';
+  generateBtn.textContent = 'GENERATE ATMOSPHERE';
+  generateBtn.style.width = '100%';
+  generateBtn.onclick = generateRandomAtmosphere;
+
+  const actionRow = document.querySelector('[data-panel="audio"] .action-row');
+  if (actionRow) {
+    actionRow.innerHTML = '';
+    actionRow.appendChild(generateBtn);
+    const stopAllBtn = document.createElement('button');
+    stopAllBtn.className = 'btn-ghost';
+    stopAllBtn.textContent = 'STOP ALL';
+    stopAllBtn.onclick = stopAllLayers;
+    actionRow.appendChild(stopAllBtn);
+  }
+
+  updateStatus();
+  log('✓ Audio system ready');
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAudio);
+} else {
+  initAudio();
 }

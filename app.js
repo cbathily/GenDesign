@@ -43,34 +43,69 @@ function draw(){
 
 function mouseMoved(){ mx=mouseX; my=mouseY; }
 
-// audio tab gets a reactive visualizer
+// audio tab — reactive visualizer
 function drawAudioViz(pg,t){
   pg.colorMode(RGB,255);
   pg.background(10,9,6);
-  const W=pg.width,H=pg.height,cy=H/2;
-  const lvl=AUD.running?audLevel():0.05;
-  // concentric ring "signal"
+  const W=pg.width,H=pg.height,cx=W/2,cy=H/2;
+
+  // count active (and audibly playing) layers
+  let active=0;
+  if(typeof AUDIO_STATE!=='undefined' && AUDIO_STATE.layers){
+    active=AUDIO_STATE.layers.filter((l,i)=>l && !AUDIO_STATE.muted[i]).length;
+  }
+  const lvl = active>0 ? 0.25 + active*0.18 + Math.random()*0.15 : 0.06;
+
+  // ---- glow core ----
+  const coreR = 70 + Math.sin(t*2)*8*lvl + active*10;
+  const g = pg.drawingContext;
+  g.save();
+  const grad = g.createRadialGradient(cx,cy,0,cx,cy,coreR*2.4);
+  grad.addColorStop(0, `rgba(244,227,107,${0.18+lvl*0.4})`);
+  grad.addColorStop(0.5, `rgba(232,166,196,${0.08+lvl*0.18})`);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle=grad;
+  g.fillRect(cx-coreR*2.4, cy-coreR*2.4, coreR*4.8, coreR*4.8);
+  g.restore();
+
+  // ---- concentric pulsing rings ----
   pg.noFill();
-  for(let i=0;i<6;i++){
-    const r=80+i*60+ (AUD.running?Math.sin(t*2+i)*20*lvl:0);
-    pg.stroke(217,194,58, 120-i*15);
-    pg.ellipse(W/2,cy,r,r*0.7);
+  for(let i=0;i<7;i++){
+    const phase = t*1.6 + i*0.7;
+    const r = 60 + i*48 + (active>0 ? Math.sin(phase)*18*lvl : Math.sin(phase)*3);
+    const a = (130 - i*16) * (active>0 ? 1 : 0.5);
+    // alternate ring colors yellow / pink
+    if(i%2===0) pg.stroke(217,194,58, a);
+    else        pg.stroke(232,166,196, a*0.8);
+    pg.strokeWeight(i===0?2:1);
+    pg.ellipse(cx,cy,r,r*0.78);
   }
-  // waveform
-  pg.stroke(232,166,196); pg.strokeWeight(2); pg.noFill();
-  pg.beginShape();
-  for(let x=0;x<W;x+=4){
-    const y=cy + Math.sin(x*0.02 + t*3)*40*lvl
-             + Math.sin(x*0.05 + t*5)*20*lvl*AUD.wob*4
-             + (Math.random()-0.5)*8*AUD.noise*4*(AUD.running?1:0);
-    pg.vertex(x,y);
+
+  // ---- dual waveform (mirrored) ----
+  for(let s=0;s<2;s++){
+    pg.stroke(s===0?232:217, s===0?166:194, s===0?196:58, 200);
+    pg.strokeWeight(2); pg.noFill();
+    pg.beginShape();
+    for(let x=0;x<=W;x+=4){
+      const env = Math.sin((x/W)*Math.PI); // fade at edges
+      const y = cy + (s===0?1:-1)*(
+        Math.sin(x*0.018 + t*3)*40*lvl +
+        Math.sin(x*0.052 + t*5)*18*lvl +
+        (Math.random()-0.5)*8*lvl
+      )*env;
+      pg.vertex(x,y);
+    }
+    pg.endShape();
   }
-  pg.endShape();
   pg.noStroke();
-  // status text
-  pg.fill(138,132,104); pg.textFont('monospace'); pg.textSize(14);
-  pg.text(AUD.running? '● SIGNAL ACTIVE — '+AUD.preset : '○ signal idle', 20, H-22);
-  applyGrain(pg,0.15);
+
+  // ---- status text ----
+  pg.fill(active>0?217:90, active>0?194:84, active>0?58:66);
+  pg.textFont('monospace'); pg.textSize(15);
+  const status = active>0 ? `● SIGNAL ACTIVE — ${active} layer(s)` : '○ signal idle';
+  pg.text(status, 22, H-24);
+
+  applyGrain(pg,0.12);
 }
 
 // ============================================================
@@ -278,56 +313,12 @@ function syncEntUI(){
 }
 
 // ============================================================
-//  AUDIO CONTROLS
+//  AUDIO CONTROLS (Local Horror Atmosphere Mixer)
 // ============================================================
+
 function bindAudio(){
-  const bind=(id,key,fmt)=>{
-    const el=$('#'+id), out=$('#'+id+'-v');
-    el.addEventListener('input',()=>{
-      let v=+el.value;
-      if(key!=='pitch') v=v/100;
-      AUD[key]=v; out.textContent=fmt?fmt(v):v;
-      audUpdate();
-    });
-  };
-  bind('aud-pitch','pitch');
-  bind('aud-hum','hum',v=>v.toFixed(2));
-  bind('aud-noise','noise',v=>v.toFixed(2));
-  bind('aud-verb','verb',v=>v.toFixed(2));
-  bind('aud-wob','wob',v=>v.toFixed(2));
-  bind('aud-pad','pad',v=>v.toFixed(2));
-  bind('aud-mood','mood',v=>v.toFixed(2));
-  bind('aud-melody','melody',v=>v.toFixed(2));
-  bind('aud-speed','speed',v=>v.toFixed(2));
-
-  bindChips('aud-presets',name=>{audApplyPreset(name); syncAudUI(); setStatus('audio preset: '+name);});
-
-  $('#aud-toggle').addEventListener('click',async()=>{
-    const btn=$('#aud-toggle');
-    if(!AUD.running){
-      btn.textContent='■ STOP SIGNAL'; btn.classList.add('playing');
-      setStatus('audio engine starting...');
-      await audStart();
-      setStatus('● signal active.');
-    } else {
-      btn.textContent='▶ START SIGNAL'; btn.classList.remove('playing');
-      audStop(); setStatus('signal stopped.');
-    }
-  });
-}
-function syncAudUI(){
-  const m={pitch:'aud-pitch',hum:'aud-hum',noise:'aud-noise',verb:'aud-verb',wob:'aud-wob',pad:'aud-pad',mood:'aud-mood',melody:'aud-melody',speed:'aud-speed'};
-  for(const k in m){
-    const el=$('#'+m[k]); const out=$('#'+m[k]+'-v');
-    if(k==='pitch'){el.value=AUD[k]; out.textContent=AUD[k];}
-    else {el.value=AUD[k]*100; out.textContent=AUD[k].toFixed(2);}
-  }
-  $('#aud-presets').querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===AUD.preset));
-}
-
-function vuLoop(){
-  const bar=$('#aud-vu');
-  setInterval(()=>{ bar.style.width=(audLevel()*100)+'%'; },80);
+  // Audio initialization is handled by audio.js
+  setStatus('horror mixer ready.');
 }
 
 // ============================================================
