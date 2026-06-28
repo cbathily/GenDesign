@@ -465,8 +465,29 @@ function habitableCol(i,j){
   if(i%2!==0 || j%2!==0) return null;
   return { X:i*LOBBY_CS, Z:j*LOBBY_CS, w:1.2, d:1.2, mark: noise(i*0.5,j*0.5,BG.seed*0.01)>0.5 };
 }
+// lights-out floorplan: grid of rooms joined by doorways (explorable)
+function lsWallCell(i,j){ return { X:i*LOBBY_CS, Z:j*LOBBY_CS, w:LOBBY_CS*1.04, d:LOBBY_CS*1.04 }; }
+function lightsoutWall(i,j){
+  const RM=5, MID=2;
+  const mi=((i%RM)+RM)%RM, mj=((j%RM)+RM)%RM;
+  const onV=mi===0, onH=mj===0;
+  if(onV||onH){
+    if(onV&&onH) return lsWallCell(i,j);                    // corner pillar
+    if(onV && mj===MID) return null;                        // doorway through E-W wall
+    if(onH && mi===MID) return null;                        // doorway through N-S wall
+    if(noise(i*0.3+700, j*0.3+700) > 0.8) return null;      // extra random opening (variety)
+    return lsWallCell(i,j);
+  }
+  // occasional interior pillar so rooms aren't all empty boxes
+  if(mi===MID && mj===MID && noise(i*0.6+50, j*0.6+50) > 0.72) return lsWallCell(i,j);
+  return null;
+}
 // active scene's cell + collision dispatcher
-function walkBlock(i,j){ return BG.scene==='habitable' ? habitableCol(i,j) : lobbyBlock(i,j); }
+function walkBlock(i,j){
+  if(BG.scene==='habitable') return habitableCol(i,j);
+  if(BG.scene==='lightsout') return lightsoutWall(i,j);
+  return lobbyBlock(i,j);
+}
 function lobbyBlocked(x,z){
   const r=0.42, ci=Math.round(x/LOBBY_CS), cj=Math.round(z/LOBBY_CS);
   for(let i=ci-1;i<=ci+1;i++) for(let j=cj-1;j<=cj+1;j++){
@@ -490,8 +511,8 @@ function updateExplore(){
   const s=Math.sin(EXPLORE.yaw), c=Math.cos(EXPLORE.yaw), sp=EXPLORE.speed;
   const nx=EXPLORE.x + (s*mvF + c*mvR)*sp;   // forward=(s,c), right=(c,-s)
   const nz=EXPLORE.z + (c*mvF - s*mvR)*sp;
-  if(!lobbyBlocked(nx, EXPLORE.z)) EXPLORE.x=nx;
-  if(!lobbyBlocked(EXPLORE.x, nz)) EXPLORE.z=nz;
+  if(!lobbyBlocked(nx, EXPLORE.z) && !propBlocked(nx, EXPLORE.z)) EXPLORE.x=nx;
+  if(!lobbyBlocked(EXPLORE.x, nz) && !propBlocked(EXPLORE.x, nz)) EXPLORE.z=nz;
 }
 
 /* ---- WALK MODE ENTITIES (weeping-angel watchers) ---- */
@@ -664,11 +685,11 @@ function drawSirenHead(pg, cx0, topY, headH, w, seed, alpha, hunt, fade){
    LOBBY ESCAPE — items, wall details & objective
    Sammle Almond Water → schaltet die EXIT-Tür frei → entkomme.
    ============================================================ */
-const WALK = { items:[], collected:0, need:3, won:false };
+const WALK = { items:[], props:[], collected:0, need:3, won:false };
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 function hashUnit(n){ const x=Math.sin(n*12.9898)*43758.5453; return x-Math.floor(x); }
 function generateWalkWorld(){
-  WALK.items=[]; WALK.collected=0; WALK.won=false;
+  WALK.items=[]; WALK.props=[]; WALK.collected=0; WALK.won=false;
   const rnd=mulberry32((BG.seed|0)||1);
   const placeOpen=(minR,maxR)=>{
     for(let t=0;t<50;t++){
@@ -682,10 +703,20 @@ function generateWalkWorld(){
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'chair',x:p.x,z:p.z}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'puddle',x:p.x,z:p.z}); }
   const ep=placeOpen(18,28)||{x:0,z:22}; WALK.items.push({type:'exit',x:ep.x,z:ep.z});
-  // spare batteries scattered through Lights Out
+  // spare batteries + clutter props scattered through Lights Out
   if(BG.scene==='lightsout'){
     for(let n=0;n<5;n++){ const p=placeOpen(5,26); if(p) WALK.items.push({type:'battery',x:p.x,z:p.z,taken:false}); }
+    const T=['crate','stack','barrel','shelf','boxes','cone','crate','boxes'];
+    for(let n=0;n<26;n++){ const p=placeOpen(3,27); if(p) WALK.props.push({type:T[(rnd()*T.length)|0], x:p.x, z:p.z}); }
   }
+}
+// props block movement (no walking through crates)
+function propBlocked(x,z){
+  for(const p of WALK.props){
+    const r = p.type==='shelf'?0.9 : p.type==='cone'?0 : 0.55;
+    if(r>0 && (x-p.x)*(x-p.x)+(z-p.z)*(z-p.z) < (r+0.3)*(r+0.3)) return true;
+  }
+  return false;
 }
 function updateWalkWorld(){
   for(const it of WALK.items){
@@ -940,6 +971,53 @@ function drawLobbyWalk(pg){
   drawWalkHUD(pg,cx,cy);
 }
 
+/* ---- WALK PROPS (3D clutter: crates, barrels, shelves, cones) ---- */
+function drawSolidBox(pg,proj,X,Z,hw,hd,h,col,bn,baseH){
+  baseH=baseH||0;
+  const yB=LOBBY_FY-baseH, yT=yB-h, xL=X-hw,xR=X+hw,zN=Z-hd,zF=Z+hd;
+  const ftl=proj(xL,yT,zN),ftr=proj(xR,yT,zN),fbr=proj(xR,yB,zN),fbl=proj(xL,yB,zN);
+  const btl=proj(xL,yT,zF),btr=proj(xR,yT,zF),bbr=proj(xR,yB,zF),bbl=proj(xL,yB,zF);
+  if([ftl,ftr,fbr,fbl,btl,btr,bbr,bbl].some(p=>p.ez<0.2)) return;
+  const sh=(m)=>pg.fill(clamp255(col[0]*bn*m),clamp255(col[1]*bn*m),clamp255(col[2]*bn*m));
+  pg.noStroke();
+  if(EXPLORE.x<xL){ sh(0.66); pg.quad(ftl.x,ftl.y,btl.x,btl.y,bbl.x,bbl.y,fbl.x,fbl.y); }
+  else if(EXPLORE.x>xR){ sh(0.66); pg.quad(ftr.x,ftr.y,btr.x,btr.y,bbr.x,bbr.y,fbr.x,fbr.y); }
+  if(EXPLORE.z<zN){ sh(1.0); pg.quad(ftl.x,ftl.y,ftr.x,ftr.y,fbr.x,fbr.y,fbl.x,fbl.y); }
+  else if(EXPLORE.z>zF){ sh(0.82); pg.quad(btl.x,btl.y,btr.x,btr.y,bbr.x,bbr.y,bbl.x,bbl.y); }
+  sh(1.3); pg.quad(ftl.x,ftl.y,ftr.x,ftr.y,btr.x,btr.y,btl.x,btl.y);   // top
+}
+function drawWalkProps(pg,proj,near){
+  const list=WALK.props.map(p=>({p,ez:proj(p.x,LOBBY_FY,p.z).ez})).sort((a,b)=>b.ez-a.ez);
+  for(const o of list){
+    if(o.ez<near) continue;
+    if(losBlocked(EXPLORE.x,EXPLORE.z,o.p.x,o.p.z)) continue;
+    drawProp(pg,o.p,proj,near);
+  }
+}
+function drawProp(pg,p,proj,near){
+  const base=proj(p.x,LOBBY_FY,p.z); if(base.ez<near) return;
+  const beam = (BG.scene==='lightsout') ? FLASH.beam : 1;
+  const bn=constrain(map(base.ez,0.6,8,1.0,0.05),0.05,1.0)*beam;
+  switch(p.type){
+    case 'crate': drawSolidBox(pg,proj,p.x,p.z,0.5,0.5,1.0,[120,86,48],bn); break;
+    case 'boxes': drawSolidBox(pg,proj,p.x,p.z,0.55,0.55,0.78,[172,142,98],bn); break;
+    case 'stack':
+      drawSolidBox(pg,proj,p.x,p.z,0.52,0.52,0.95,[118,84,46],bn);
+      drawSolidBox(pg,proj,p.x+0.12,p.z+0.1,0.4,0.4,0.7,[134,98,56],bn,0.95); break;
+    case 'barrel': drawSolidBox(pg,proj,p.x,p.z,0.38,0.38,1.1,[74,76,80],bn); break;
+    case 'shelf': drawSolidBox(pg,proj,p.x,p.z,0.85,0.32,2.05,[92,92,98],bn); break;
+    case 'cone': {
+      const tip=proj(p.x,LOBBY_FY-0.55,p.z), bl=proj(p.x-0.28,LOBBY_FY,p.z), br=proj(p.x+0.28,LOBBY_FY,p.z);
+      if(tip.ez<near) break; const mb=Math.max(0.15,bn);
+      pg.noStroke(); pg.fill(clamp255(236*mb),clamp255(118*mb),clamp255(38*bn));
+      pg.triangle(tip.x,tip.y,bl.x,bl.y,br.x,br.y);
+      const m1=proj(p.x-0.17,LOBBY_FY-0.27,p.z),m2=proj(p.x+0.17,LOBBY_FY-0.27,p.z),m3=proj(p.x+0.12,LOBBY_FY-0.17,p.z),m4=proj(p.x-0.12,LOBBY_FY-0.17,p.z);
+      pg.fill(clamp255(220*mb),clamp255(218*mb),clamp255(208*mb)); pg.quad(m1.x,m1.y,m2.x,m2.y,m3.x,m3.y,m4.x,m4.y);
+      break;
+    }
+  }
+}
+
 // dispatch first-person walk by active scene
 function drawSceneWalk(pg){
   if(BG.scene==='habitable') drawHabitableWalk(pg);
@@ -994,23 +1072,26 @@ function drawLightsoutWalk(pg){
   pg.fill(20*beam,20*beam,24*beam); pg.rect(0,0,W,cy);
 
   // wall faces (flashlight-lit by distance)
-  const ci=Math.round(EXPLORE.x/CS), cj=Math.round(EXPLORE.z/CS), R=12;
+  const ci=Math.round(EXPLORE.x/CS), cj=Math.round(EXPLORE.z/CS), R=13;
   const faces=[];
   for(let i=ci-R;i<=ci+R;i++) for(let j=cj-R;j<=cj+R;j++){
     const b=walkBlock(i,j); if(!b) continue;
     const xL=b.X-b.w/2, xR=b.X+b.w/2, zN=b.Z-b.d/2, zF=b.Z+b.d/2;
+    // only draw faces that border an OPEN cell (skip walls buried inside walls)
+    const openL=!walkBlock(i-1,j), openR=!walkBlock(i+1,j), openN=!walkBlock(i,j-1), openF=!walkBlock(i,j+1);
     const push=(x1,z1,x2,z2)=>{
       const a=proj(x1,CY,z1), bb=proj(x2,CY,z2), c=proj(x2,FY,z2), d=proj(x1,FY,z1);
       if(a.ez<near||bb.ez<near||c.ez<near||d.ez<near) return;
       faces.push({a,b:bb,c,d,depth:(a.ez+bb.ez)/2});
     };
-    if(EXPLORE.x<xL)      push(xL,zN,xL,zF);
-    else if(EXPLORE.x>xR) push(xR,zF,xR,zN);
-    if(EXPLORE.z<zN)      push(xR,zN,xL,zN);
-    else if(EXPLORE.z>zF) push(xL,zF,xR,zF);
+    if(EXPLORE.x<xL && openL)      push(xL,zN,xL,zF);
+    else if(EXPLORE.x>xR && openR) push(xR,zF,xR,zN);
+    if(EXPLORE.z<zN && openN)      push(xR,zN,xL,zN);
+    else if(EXPLORE.z>zF && openF) push(xL,zF,xR,zF);
   }
   faces.sort((p,q)=>q.depth-p.depth);
   for(const fc of faces) drawDarkFace(pg,fc);
+  drawWalkProps(pg,proj,near);
   pg.pop();
 
   // ---- flashlight: cut a bright hole (size/strength by battery), rest black ----

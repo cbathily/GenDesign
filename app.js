@@ -33,7 +33,11 @@ function windowResized(){
 function draw(){
   const t=frameCount*0.01;
   if(activeTab==='background'){
-    if(EXPLORE.on && WALKABLE[BG.scene]){ updateExplore(); drawSceneWalk(this); }
+    if(EXPLORE.on && WALKABLE[BG.scene]){
+      updateExplore();
+      if(BG.scene==='lightsout' && typeof lightsout3dRender==='function' && lightsout3dRender(this)){ /* WebGL */ }
+      else drawSceneWalk(this);
+    }
     else drawBackground(this,t);
   } else if(activeTab==='entity'){
     drawEntity(this, mx, my);
@@ -243,11 +247,14 @@ function toggleExplore(){
   if(!WALKABLE[BG.scene]){ setStatus('walk mode: Lobby, Habitable & Lights Out.'); return; }
   EXPLORE.on=!EXPLORE.on;
   if(EXPLORE.on){
-    // habitable has a column on the (0,0) cell — start in an aisle
-    EXPLORE.x = (BG.scene==='habitable') ? LOBBY_CS : 0;
-    EXPLORE.z=0; EXPLORE.yaw=0; EXPLORE.keys={};
+    // start in an open cell (avoid spawning inside a wall/column)
+    if(BG.scene==='habitable'){ EXPLORE.x=LOBBY_CS; EXPLORE.z=0; }
+    else if(BG.scene==='lightsout'){ EXPLORE.x=2*LOBBY_CS; EXPLORE.z=2*LOBBY_CS; }   // room interior
+    else { EXPLORE.x=0; EXPLORE.z=0; }
+    EXPLORE.yaw=0; EXPLORE.keys={};
     FLASH.batt=1.0;
     generateWalkWorld();
+    if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
     setStatus('▶ EXPLORE — find 3 Almond Water, then the EXIT');
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
   setWalkBtn();
