@@ -33,7 +33,8 @@ function windowResized(){
 function draw(){
   const t=frameCount*0.01;
   if(activeTab==='background'){
-    drawBackground(this,t);
+    if(EXPLORE.on && (BG.scene==='lobby'||BG.scene==='habitable')){ updateExplore(); drawSceneWalk(this); }
+    else drawBackground(this,t);
   } else if(activeTab==='entity'){
     drawEntity(this, mx, my);
   } else {
@@ -205,10 +206,14 @@ function bindBackground(){
   bind('bg-fog','fog',v=>v.toFixed(2));
 
   bindSeg('bg-geo',v=>{BG.geo=v; setStatus('geometry: '+v);});
-  bindChips('bg-presets',name=>{
-    bgApplyPalette(name);
-    $('#bg-hue').value=BG.hue; $('#bg-hue-v').textContent=BG.hue;
-    setStatus('palette: '+name);
+  bindChips('bg-scenes',name=>{
+    exitExplore();
+    bgApplyScene(name);
+    syncBgUI();
+    showSceneInfo(name);
+    const s=BG_SCENES[name];
+    if(s) setStatus('scene: LEVEL '+s.level+' — '+s.title);
+    BG.seed=Math.floor(Math.random()*99999); noiseSeed(BG.seed); setSeed(BG.seed);
   });
 
   $('#bg-regen').addEventListener('click',()=>{
@@ -219,36 +224,91 @@ function bindBackground(){
     interpretBgPrompt($('#bg-prompt').value);
   });
   $('#bg-save').addEventListener('click',()=>saveCanvasPNG('background'));
+
+  const walkBtn=$('#bg-walk');
+  if(walkBtn){
+    walkBtn.addEventListener('click',()=>toggleExplore());
+    bindExploreKeys();
+  }
+}
+
+// ---------- LOBBY WALK MODE ----------
+function setWalkBtn(){
+  const b=$('#bg-walk'); if(!b) return;
+  b.textContent = EXPLORE.on ? '■ EXIT WALK' : '▶ ENTER LEVEL · WALK';
+  b.classList.toggle('walking', EXPLORE.on);
+}
+function toggleExplore(){
+  if(BG.scene!=='lobby' && BG.scene!=='habitable'){ setStatus('walk mode: Lobby & Habitable only.'); return; }
+  EXPLORE.on=!EXPLORE.on;
+  if(EXPLORE.on){
+    // habitable has a column on the (0,0) cell — start in an aisle
+    EXPLORE.x = (BG.scene==='habitable') ? LOBBY_CS : 0;
+    EXPLORE.z=0; EXPLORE.yaw=0; EXPLORE.keys={};
+    generateWalkWorld();
+    setStatus('▶ EXPLORE — find 3 Almond Water, then the EXIT');
+  } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
+  setWalkBtn();
+}
+function exitExplore(){ if(EXPLORE.on){ EXPLORE.on=false; EXPLORE.keys={}; setWalkBtn(); setStatus('exited walk mode.'); } }
+function bindExploreKeys(){
+  const nav=['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
+  window.addEventListener('keydown',e=>{
+    if(!EXPLORE.on) return;
+    if(e.code==='Escape'){ exitExplore(); return; }
+    EXPLORE.keys[e.code]=true;
+    if(nav.includes(e.code)) e.preventDefault();
+  });
+  window.addEventListener('keyup',e=>{ EXPLORE.keys[e.code]=false; });
 }
 
 // crude but effective prompt -> parameter mapping
 function interpretBgPrompt(txt){
   const t=txt.toLowerCase();
-  if(t.match(/pink|balloon|ball ?room|rosa/)){ bgApplyPalette('ballroom'); }
-  else if(t.match(/pool|water|blue|flood/)){ bgApplyPalette('poolrooms'); }
-  else if(t.match(/rainbow|color|play|kid|child/)){ bgApplyPalette('rainbow'); }
-  else { bgApplyPalette('backrooms'); }
+  // pick a scene from the prompt
+  if(t.match(/ocean|deep ?water|abyss|thalasso|sea|underwater|drown/)) bgApplyScene('thalasso');
+  else if(t.match(/pool|water|aquatic|flood|tile/))      bgApplyScene('pool');
+  else if(t.match(/cave|rock|cavern|stalact|underground/)) bgApplyScene('cave');
+  else if(t.match(/dark|black|lights ?out|flashlight|pitch/)) bgApplyScene('lightsout');
+  else if(t.match(/hotel|door|carpet|corridor room|terror/)) bgApplyScene('hotel');
+  else if(t.match(/office|cubicle|desk|work|monitor/))   bgApplyScene('office');
+  else if(t.match(/electric|substation|transformer|spark|cable|power/)) bgApplyScene('substation');
+  else if(t.match(/play|ball ?pit|kid|child|tube|rainbow/)) bgApplyScene('playplace');
+  else if(t.match(/suburb|street|house|neighbo|outdoor|night/)) bgApplyScene('suburb');
+  else if(t.match(/pipe|rust|machine|boiler|hot|steam/))  bgApplyScene('pipes');
+  else if(t.match(/concrete|industrial|stair|habitable|grey|gray/)) bgApplyScene('habitable');
+  else if(t.match(/pink|dream|pastel|rosa|nostalg/))      bgApplyScene('dreamcore');
+  else                                                     bgApplyScene('lobby');
 
-  if(t.match(/pillar|column|maze|säul/)) BG.geo='pillars';
-  else if(t.match(/void|empty|hall|room|leer/)) BG.geo='void';
-  else BG.geo='corridor';
+  // manual geometry override
+  if(t.match(/pillar|column|säul/)) BG.geo='pillars';
+  else if(t.match(/void|empty|leer/)) BG.geo='void';
 
+  // mood tweaks layered on top of the scene defaults
   if(t.match(/fog|haze|mist|nebel/)) BG.fog=0.6;
   if(t.match(/dark|dim|deep|dunkel/)) BG.light=0.25;
   if(t.match(/bright|glow|hell/)) BG.light=0.85;
   if(t.match(/grain|vhs|old|retro/)) BG.grain=0.7;
 
+  showSceneInfo(BG.scene);
   syncBgUI(); setStatus('interpreted: "'+txt.slice(0,28)+'"');
   BG.seed=Math.floor(Math.random()*99999); noiseSeed(BG.seed); setSeed(BG.seed);
+}
+// update the LEVEL plate + description for a scene
+function showSceneInfo(name){
+  const s=BG_SCENES[name]; if(!s) return;
+  $('#bg-scene-level').innerHTML='<span class="lvl-tag">LEVEL '+s.level+'</span> '+s.title;
+  $('#bg-scene-desc').textContent=s.desc;
 }
 function syncBgUI(){
   $('#bg-hue').value=BG.hue; $('#bg-hue-v').textContent=Math.round(BG.hue);
   $('#bg-light').value=BG.light*100; $('#bg-light-v').textContent=BG.light.toFixed(2);
   $('#bg-grain').value=BG.grain*100; $('#bg-grain-v').textContent=BG.grain.toFixed(2);
   $('#bg-fog').value=BG.fog*100; $('#bg-fog-v').textContent=BG.fog.toFixed(2);
-  // sync segs
+  $('#bg-depth').value=BG.depth; $('#bg-depth-v').textContent=BG.depth;
+  // sync segs + scene chips
   $('#bg-geo').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===BG.geo));
-  $('#bg-presets').querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===BG.palette));
+  $('#bg-scenes').querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===BG.scene));
 }
 
 // ============================================================

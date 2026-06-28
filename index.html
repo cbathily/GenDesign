@@ -66,17 +66,31 @@
           <p>Liminale Räume. Endlose Korridore. Verlassene Zwischenwelten.</p>
         </div>
 
+        <div class="ctrl">
+          <div class="ctrl-label level-head"><span>▚ LEVEL SELECT</span><em id="bg-scene-count">13 SECTORS</em></div>
+          <div class="level-grid" id="bg-scenes">
+            <button class="chip lvl-card active" data-preset="lobby"><span class="lvl-num">0</span><span class="lvl-name">The Lobby</span></button>
+            <button class="chip lvl-card" data-preset="habitable"><span class="lvl-num">1</span><span class="lvl-name">Habitable Zone</span></button>
+            <button class="chip lvl-card" data-preset="pipes"><span class="lvl-num">2</span><span class="lvl-name">Pipe Dreams</span></button>
+            <button class="chip lvl-card" data-preset="substation"><span class="lvl-num">3</span><span class="lvl-name">Substation</span></button>
+            <button class="chip lvl-card" data-preset="office"><span class="lvl-num">4</span><span class="lvl-name">Abandoned Office</span></button>
+            <button class="chip lvl-card" data-preset="hotel"><span class="lvl-num">5</span><span class="lvl-name">Terror Hotel</span></button>
+            <button class="chip lvl-card" data-preset="lightsout"><span class="lvl-num">6</span><span class="lvl-name">Lights Out</span></button>
+            <button class="chip lvl-card" data-preset="thalasso"><span class="lvl-num">7</span><span class="lvl-name">Thalassophobia</span></button>
+            <button class="chip lvl-card" data-preset="cave"><span class="lvl-num">8</span><span class="lvl-name">Cave System</span></button>
+            <button class="chip lvl-card" data-preset="suburb"><span class="lvl-num">9</span><span class="lvl-name">The Suburbs</span></button>
+            <button class="chip lvl-card" data-preset="pool"><span class="lvl-num">37</span><span class="lvl-name">Poolrooms</span></button>
+            <button class="chip lvl-card" data-preset="playplace"><span class="lvl-num">Fun</span><span class="lvl-name">Playplace</span></button>
+            <button class="chip lvl-card" data-preset="dreamcore"><span class="lvl-num">∞</span><span class="lvl-name">Dreamcore</span></button>
+          </div>
+          <p class="scene-level" id="bg-scene-level"><span class="lvl-tag">LEVEL 0</span> The Lobby</p>
+          <p class="scene-desc" id="bg-scene-desc">Endloses gelbes Tapetenlabyrinth, summende Leuchtstoffröhren, fleckiger Teppich.</p>
+        </div>
+
         <div class="prompt-row">
           <label>PROMPT / STIMMUNG</label>
           <input type="text" id="bg-prompt" placeholder="z.B. flooded pink hallway, balloons, fog" value="endless yellow rooms">
           <button class="apply-btn" id="bg-apply">→ INTERPRET</button>
-        </div>
-
-        <div class="preset-row" id="bg-presets">
-          <button class="chip active" data-preset="backrooms">backrooms</button>
-          <button class="chip" data-preset="poolrooms">poolrooms</button>
-          <button class="chip" data-preset="ballroom">pink ballroom</button>
-          <button class="chip" data-preset="rainbow">rainbow play-zone</button>
         </div>
 
         <div class="ctrl">
@@ -105,8 +119,11 @@
             <button class="seg-btn active" data-v="corridor">corridor</button>
             <button class="seg-btn" data-v="pillars">pillars</button>
             <button class="seg-btn" data-v="void">void room</button>
+            <button class="seg-btn" data-v="outdoor">outdoor</button>
           </div>
         </div>
+
+        <button class="btn-solid wide walk-btn" id="bg-walk">▶ ENTER LEVEL · WALK</button>
 
         <div class="action-row">
           <button class="btn-ghost" id="bg-regen">⟳ REGENERATE</button>
@@ -195,9 +212,9 @@
     </aside>
   </main>
 
-  <script src="background.js"></script>
-  <script src="entity.js"></script>
-  <script src="audio.js"></script>
-  <script src="app.js"></script>
+  <script src="background.js?v=20"></script>
+  <script src="entity.js?v=20"></script>
+  <script src="audio.js?v=20"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>
