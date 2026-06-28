@@ -33,7 +33,7 @@ function windowResized(){
 function draw(){
   const t=frameCount*0.01;
   if(activeTab==='background'){
-    if(EXPLORE.on && BG.scene==='lobby'){ updateExplore(); drawLobbyWalk(this); }
+    if(EXPLORE.on && (BG.scene==='lobby'||BG.scene==='habitable')){ updateExplore(); drawSceneWalk(this); }
     else drawBackground(this,t);
   } else if(activeTab==='entity'){
     drawEntity(this, mx, my);
@@ -207,7 +207,7 @@ function bindBackground(){
 
   bindSeg('bg-geo',v=>{BG.geo=v; setStatus('geometry: '+v);});
   bindChips('bg-scenes',name=>{
-    if(name!=='lobby') exitExplore();
+    exitExplore();
     bgApplyScene(name);
     syncBgUI();
     showSceneInfo(name);
@@ -239,10 +239,12 @@ function setWalkBtn(){
   b.classList.toggle('walking', EXPLORE.on);
 }
 function toggleExplore(){
-  if(BG.scene!=='lobby'){ setStatus('walk mode is Lobby-only (prototype).'); return; }
+  if(BG.scene!=='lobby' && BG.scene!=='habitable'){ setStatus('walk mode: Lobby & Habitable only.'); return; }
   EXPLORE.on=!EXPLORE.on;
   if(EXPLORE.on){
-    EXPLORE.x=0; EXPLORE.z=0; EXPLORE.yaw=0; EXPLORE.keys={};
+    // habitable has a column on the (0,0) cell — start in an aisle
+    EXPLORE.x = (BG.scene==='habitable') ? LOBBY_CS : 0;
+    EXPLORE.z=0; EXPLORE.yaw=0; EXPLORE.keys={};
     generateWalkWorld();
     setStatus('▶ EXPLORE — find 3 Almond Water, then the EXIT');
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }

@@ -29,7 +29,7 @@ const BG_SCENES = {
     label: 'Habitable Zone', level: '1', title: 'The Habitable Zone',
     desc:  'Industrieller Beton, flackernde Lichter, Rohre und Treppenhäuser.',
     pal: { wall:[120,122,120], floor:[92,93,90], ceil:[104,106,104], light:[225,232,240] },
-    geo:'corridor', detail:'pipes_v', hue:210, light:0.42, fog:0.26, grain:0.40,
+    geo:'corridor', detail:'', hue:210, light:0.42, fog:0.30, grain:0.42,
   },
   pipes: {
     label: 'Pipe Dreams', level: '2', title: 'Pipe Dreams',
@@ -138,6 +138,8 @@ function drawBackground(pg, t){
 
   if (BG.scene === 'lobby'){
     drawLobby(pg,cx,cy,wall,floor,ceil,lite);
+  } else if (BG.scene === 'habitable'){
+    drawHabitable(pg,cx,cy,wall,floor,ceil,lite);
   } else if (BG.geo === 'void'){
     drawVoidRoom(pg,cx,cy,wall,floor,ceil,lite);
   } else if (BG.geo === 'outdoor'){
@@ -154,7 +156,7 @@ function drawBackground(pg, t){
   bgDrawDetail(pg, S.detail, cx, cy, wall, floor, ceil, lite, t);
 
   // ---- light bloom at vanishing point (skip where the far end is meant to be dark) ----
-  const noBloom = {lobby:1, lightsout:1, thalasso:1, cave:1};
+  const noBloom = {lobby:1, habitable:1, lightsout:1, thalasso:1, cave:1};
   if (!noBloom[BG.scene]){
     const lightR = lerp(40,180,BG.light);
     for(let i=8;i>0;i--){
@@ -335,6 +337,110 @@ function drawLobbyBox(pg,proj,b,CY,FY,wall,lite,farZ){
 }
 
 /* ============================================================
+   LEVEL 1 — HABITABLE ZONE (concrete parking-garage style)
+   Betonsäulen-Raster, lange Leuchtstoffröhren, feuchter Boden.
+   ============================================================ */
+function drawHabitable(pg,cx,cy,wall,floor,ceil,lite){
+  const W=pg.width,H=pg.height;
+  const f=W*0.95, CY=-1.15, FY=1.0;
+  const proj=(X,Y,Z)=>({x:cx + f*X/Z, y:cy + f*Y/Z});
+  const farZ=lerp(12,24,(BG.depth-2)/12);
+  const gctx=pg.drawingContext;
+
+  // darker concrete ceiling + floor
+  pg.fill(red(ceil)*0.7,green(ceil)*0.7,blue(ceil)*0.7); pg.rect(0,0,W,cy);
+  pg.fill(red(floor)*0.78,green(floor)*0.78,blue(floor)*0.78); pg.rect(0,cy,W,H-cy);
+
+  // faint structural ceiling beams across the width
+  pg.stroke(red(ceil)*0.45,green(ceil)*0.45,blue(ceil)*0.45,150); pg.strokeWeight(1);
+  for(let z=2; z<=farZ; z+=2){ const a=proj(-16,CY,z), b=proj(16,CY,z); pg.line(a.x,a.y,b.x,b.y); }
+  pg.noStroke();
+
+  // long fluorescent tube rows over the aisles + floor pools
+  for(const xc of [-4,0,4]){
+    for(let z=1.6; z<farZ; z+=1.0){
+      const inten=constrain(map(z,1.6,farZ,1,0.18),0.18,1);
+      const a=proj(xc-0.09,CY,z), b=proj(xc+0.09,CY,z), c=proj(xc+0.09,CY,z+0.62), d=proj(xc-0.09,CY,z+0.62);
+      pg.fill(red(lite),green(lite),blue(lite),248*inten);
+      pg.quad(a.x,a.y,b.x,b.y,c.x,c.y,d.x,d.y);
+      // bloom + wet floor reflection pool
+      const ctr=proj(xc,CY,z+0.3), fp=proj(xc,FY,z+0.3), r=Math.max(8,f*0.9/z);
+      gctx.save(); gctx.globalCompositeOperation='lighter';
+      const hg=gctx.createRadialGradient(ctr.x,ctr.y,0,ctr.x,ctr.y,r*0.7);
+      hg.addColorStop(0,`rgba(${red(lite)|0},${green(lite)|0},${blue(lite)|0},${0.4*inten})`);
+      hg.addColorStop(1,'rgba(0,0,0,0)');
+      gctx.fillStyle=hg; gctx.fillRect(ctr.x-r,ctr.y-r,r*2,r*2);
+      const fpg=gctx.createRadialGradient(fp.x,fp.y,0,fp.x,fp.y,r);
+      fpg.addColorStop(0,`rgba(${red(lite)|0},${green(lite)|0},${blue(lite)|0},${0.14*inten})`);
+      fpg.addColorStop(1,'rgba(0,0,0,0)');
+      gctx.fillStyle=fpg; gctx.fillRect(fp.x-r,fp.y-r*0.5,r*2,r); gctx.restore();
+    }
+  }
+
+  // wet streaks on the concrete floor
+  pg.fill(0,0,0,40);
+  for(let i=0;i<6;i++){ const lane=-6+i*2.4; const a=proj(lane,FY,2.5), b=proj(lane+0.4,FY,2.5), c=proj(lane*0.4,FY,farZ), d=proj(lane*0.4-0.2,FY,farZ);
+    pg.quad(a.x,a.y,b.x,b.y,c.x,c.y,d.x,d.y); }
+
+  // regular grid of concrete columns
+  const cols=[];
+  for(let z=3; z<farZ-0.3; z+=2.6){
+    for(const lane of [-6,-2,2,6]){
+      cols.push({X:lane, Z:z, w:1.15, d:1.15, mark: noise(z*0.5,lane*0.7,BG.seed*0.01)>0.55});
+    }
+  }
+  cols.sort((a,b)=>b.Z-a.Z);
+  for(const c of cols) drawConcreteColumn(pg,proj,c,CY,FY,wall,lite,farZ);
+
+  // far darkness
+  gctx.save();
+  const dk=gctx.createRadialGradient(cx,cy,0,cx,cy,W*0.34);
+  dk.addColorStop(0,'rgba(6,7,9,0.62)'); dk.addColorStop(1,'rgba(6,7,9,0)');
+  gctx.fillStyle=dk; gctx.fillRect(cx-W*0.36,cy-W*0.36,W*0.72,W*0.72); gctx.restore();
+}
+
+function drawConcreteColumn(pg,proj,b,CY,FY,wall,lite,farZ){
+  const zN=b.Z-b.d/2, zF=b.Z+b.d/2, xL=b.X-b.w/2, xR=b.X+b.w/2;
+  const ftl=proj(xL,CY,zN), ftr=proj(xR,CY,zN), fbr=proj(xR,FY,zN), fbl=proj(xL,FY,zN);
+  const sh=constrain(map(b.Z,3,farZ,1.06,0.4),0.4,1.06);
+  const lp=(a,c,t)=>({x:a.x+(c.x-a.x)*t,y:a.y+(c.y-a.y)*t});
+  // contact shadow
+  pg.fill(0,0,0,70);
+  const s1=proj(xL-0.2,FY,zN), s2=proj(xR+0.2,FY,zN), s3=proj(xR+0.5,FY,zF+0.4), s4=proj(xL-0.5,FY,zF+0.4);
+  pg.quad(s1.x,s1.y,s2.x,s2.y,s3.x,s3.y,s4.x,s4.y);
+  // side face
+  pg.fill(red(wall)*sh*0.62,green(wall)*sh*0.62,blue(wall)*sh*0.62);
+  let sTL,sBL;
+  if(b.X>=0){ sTL=proj(xL,CY,zF); sBL=proj(xL,FY,zF); pg.quad(ftl.x,ftl.y,sTL.x,sTL.y,sBL.x,sBL.y,fbl.x,fbl.y); }
+  else { sTL=proj(xR,CY,zF); sBL=proj(xR,FY,zF); pg.quad(ftr.x,ftr.y,sTL.x,sTL.y,sBL.x,sBL.y,fbr.x,fbr.y); }
+  // front face (concrete)
+  pg.fill(red(wall)*sh,green(wall)*sh,blue(wall)*sh);
+  pg.quad(ftl.x,ftl.y,ftr.x,ftr.y,fbr.x,fbr.y,fbl.x,fbl.y);
+  // top-down light wash
+  const mL=lp(ftl,fbl,0.4), mR=lp(ftr,fbr,0.4);
+  pg.fill(red(lite),green(lite),blue(lite),26*sh);
+  pg.quad(ftl.x,ftl.y,ftr.x,ftr.y,mR.x,mR.y,mL.x,mL.y);
+  // yellow safety stripe near the base (front)
+  const yTop=lp(fbl,ftl,0.16), yTopR=lp(fbr,ftr,0.16);
+  pg.fill(200*sh,170*sh,40*sh);
+  pg.quad(yTop.x,yTop.y, yTopR.x,yTopR.y, fbr.x,fbr.y, fbl.x,fbl.y);
+  // concrete streaks
+  pg.stroke(red(wall)*sh*0.7,green(wall)*sh*0.7,blue(wall)*sh*0.7,70); pg.strokeWeight(1);
+  for(let k=1;k<4;k++){ const tt=k/4; const a=lp(ftl,ftr,tt), c=lp(fbl,fbr,tt); pg.line(a.x,a.y,c.x,c.y); }
+  pg.noStroke();
+  // "F" level marking plate on some columns
+  if(b.mark){
+    const pTL=lp(ftl,ftr,0.28), pTR=lp(ftl,ftr,0.72);
+    const pcTL=lp(pTL,fbl,0.32), pcTR=lp(pTR,fbr,0.32);
+    const pcBL=lp(pTL,fbl,0.62), pcBR=lp(pTR,fbr,0.62);
+    pg.fill(232*sh,230*sh,222*sh);
+    pg.quad(pcTL.x,pcTL.y,pcTR.x,pcTR.y,pcBR.x,pcBR.y,pcBL.x,pcBL.y);
+    const cxp=(pcTL.x+pcBR.x)/2, cyp=(pcTL.y+pcBR.y)/2, fs=Math.hypot(pcBL.x-pcTL.x,pcBL.y-pcTL.y)*0.9;
+    if(fs>6){ pg.fill(40,40,42); pg.textAlign(CENTER,CENTER); pg.textFont('monospace'); pg.textSize(fs); pg.text('F',cxp,cyp); pg.textAlign(LEFT,BASELINE); }
+  }
+}
+
+/* ============================================================
    LOBBY — WALK MODE (first-person prototype)
    Bewegliche Kamera (x,z,yaw), WASD + Pfeile, Kollision gegen
    Blöcke. Welt ist ein unendliches deterministisches Raster:
@@ -353,11 +459,17 @@ function lobbyBlock(i,j){
   const d=0.8 + noise(i+3,j+3)*0.7;
   return { X:i*LOBBY_CS+jx, Z:j*LOBBY_CS+jz, w, d };
 }
-// is world point (x,z) inside any block (inflated by player radius)?
+// habitable zone: regular concrete-column grid (every other cell)
+function habitableCol(i,j){
+  if(i%2!==0 || j%2!==0) return null;
+  return { X:i*LOBBY_CS, Z:j*LOBBY_CS, w:1.2, d:1.2, mark: noise(i*0.5,j*0.5,BG.seed*0.01)>0.5 };
+}
+// active scene's cell + collision dispatcher
+function walkBlock(i,j){ return BG.scene==='habitable' ? habitableCol(i,j) : lobbyBlock(i,j); }
 function lobbyBlocked(x,z){
   const r=0.42, ci=Math.round(x/LOBBY_CS), cj=Math.round(z/LOBBY_CS);
   for(let i=ci-1;i<=ci+1;i++) for(let j=cj-1;j<=cj+1;j++){
-    const b=lobbyBlock(i,j); if(!b) continue;
+    const b=walkBlock(i,j); if(!b) continue;
     if(x>b.X-b.w/2-r && x<b.X+b.w/2+r && z>b.Z-b.d/2-r && z<b.Z+b.d/2+r) return true;
   }
   return false;
@@ -562,7 +674,7 @@ function generateWalkWorld(){
       const ang=rnd()*Math.PI*2, d=minR+rnd()*(maxR-minR);
       const x=Math.sin(ang)*d, z=Math.cos(ang)*d;
       const i=Math.round(x/LOBBY_CS), j=Math.round(z/LOBBY_CS);
-      if(!lobbyBlock(i,j) && !lobbyBlocked(x,z)) return {x,z};
+      if(!walkBlock(i,j) && !lobbyBlocked(x,z)) return {x,z};
     } return null;
   };
   for(let n=0;n<6;n++){ const p=placeOpen(5,22); if(p) WALK.items.push({type:'almond',x:p.x,z:p.z,taken:false}); }
@@ -812,6 +924,129 @@ function drawLobbyWalk(pg){
   drawWalkHUD(pg,cx,cy);
 }
 
+// dispatch first-person walk by active scene
+function drawSceneWalk(pg){ if(BG.scene==='habitable') drawHabitableWalk(pg); else drawLobbyWalk(pg); }
+
+function drawHabitableWalk(pg){
+  updateWalkWorld();
+  const W=pg.width,H=pg.height,cx=W/2,cy=H*0.5;
+  const f=W*0.9, near=0.28, CS=LOBBY_CS, CY=LOBBY_CY, FY=LOBBY_FY;
+  const P=BG_SCENES.habitable.pal, amt=0.4;
+  const wall=hueShift(P.wall,BG.hue,amt), floor=hueShift(P.floor,BG.hue,amt),
+        ceil=hueShift(P.ceil,BG.hue,amt), lite=hueShift(P.light,BG.hue,amt);
+  const sN=Math.sin(EXPLORE.yaw), cN=Math.cos(EXPLORE.yaw);
+  const proj=(wx,wy,wz)=>{ const dx=wx-EXPLORE.x, dz=wz-EXPLORE.z;
+    const ex=dx*cN - dz*sN, ez=dx*sN + dz*cN; return {ez, x:cx+f*ex/ez, y:cy+f*wy/ez}; };
+
+  pg.push(); pg.colorMode(RGB,255); pg.noStroke();
+  const gctx=pg.drawingContext;
+  // dark concrete ceiling + floor gradients
+  gctx.save();
+  const cg=gctx.createLinearGradient(0,0,0,cy);
+  cg.addColorStop(0,`rgb(${clamp255(red(ceil)*0.5)},${clamp255(green(ceil)*0.5)},${clamp255(blue(ceil)*0.5)})`);
+  cg.addColorStop(1,`rgb(${clamp255(red(ceil)*0.78)},${clamp255(green(ceil)*0.78)},${clamp255(blue(ceil)*0.78)})`);
+  gctx.fillStyle=cg; gctx.fillRect(0,0,W,cy);
+  const fgr=gctx.createLinearGradient(0,cy,0,H);
+  fgr.addColorStop(0,`rgb(${clamp255(red(floor)*0.45)},${clamp255(green(floor)*0.45)},${clamp255(blue(floor)*0.45)})`);
+  fgr.addColorStop(1,`rgb(${clamp255(red(floor)*0.9)},${clamp255(green(floor)*0.9)},${clamp255(blue(floor)*0.9)})`);
+  gctx.fillStyle=fgr; gctx.fillRect(0,cy,W,H-cy);
+  gctx.restore();
+
+  const ci=Math.round(EXPLORE.x/CS), cj=Math.round(EXPLORE.z/CS), R=14;
+
+  // ---- fluorescent tubes over the aisles (odd lattice lines) + wet floor pools ----
+  for(let k=ci-R;k<=ci+R;k++){
+    if(k%2===0) continue;
+    const xline=k*CS;
+    for(let j=cj-R;j<=cj+R;j++){
+      const z0=j*CS-CS*0.42, z1=j*CS+CS*0.42, zc=j*CS;
+      const ctr=proj(xline,CY,zc); if(ctr.ez<near || ctr.ez>40) continue;
+      const inten=constrain(map(ctr.ez,1,34,1,0.14),0.14,1);
+      const a=proj(xline-0.1,CY,z0), b=proj(xline+0.1,CY,z0), c=proj(xline+0.1,CY,z1), d=proj(xline-0.1,CY,z1);
+      if(a.ez>near&&b.ez>near&&c.ez>near&&d.ez>near){
+        pg.fill(red(lite),green(lite),blue(lite),250*inten);
+        pg.quad(a.x,a.y,b.x,b.y,c.x,c.y,d.x,d.y);
+        gctx.save(); gctx.globalCompositeOperation='lighter';
+        const hr=Math.max(10,f*0.5/ctr.ez);
+        const hg=gctx.createRadialGradient(ctr.x,ctr.y,0,ctr.x,ctr.y,hr);
+        hg.addColorStop(0,`rgba(${red(lite)|0},${green(lite)|0},${blue(lite)|0},${0.45*inten})`);
+        hg.addColorStop(1,'rgba(0,0,0,0)');
+        gctx.fillStyle=hg; gctx.fillRect(ctr.x-hr,ctr.y-hr,hr*2,hr*2); gctx.restore();
+      }
+      const fp=proj(xline,FY,zc);
+      if(fp.ez>near){ const r=Math.max(8,f*1.0/fp.ez);
+        gctx.save(); const grad=gctx.createRadialGradient(fp.x,fp.y,0,fp.x,fp.y,r);
+        grad.addColorStop(0,`rgba(${red(lite)|0},${green(lite)|0},${blue(lite)|0},${0.13*inten})`);
+        grad.addColorStop(1,'rgba(0,0,0,0)');
+        gctx.fillStyle=grad; gctx.fillRect(fp.x-r,fp.y-r*0.5,r*2,r); gctx.restore();
+      }
+    }
+  }
+
+  // ---- concrete columns: collect faces, paint far -> near ----
+  const faces=[];
+  for(let i=ci-R;i<=ci+R;i++) for(let j=cj-R;j<=cj+R;j++){
+    const b=walkBlock(i,j); if(!b) continue;
+    const xL=b.X-b.w/2, xR=b.X+b.w/2, zN=b.Z-b.d/2, zF=b.Z+b.d/2;
+    const push=(x1,z1,x2,z2,tone,front)=>{
+      const a=proj(x1,CY,z1), bb=proj(x2,CY,z2), c=proj(x2,FY,z2), d=proj(x1,FY,z1);
+      if(a.ez<near||bb.ez<near||c.ez<near||d.ez<near) return;
+      faces.push({a,b:bb,c,d,depth:(a.ez+bb.ez)/2,tone,front, mark:b.mark});
+    };
+    if(EXPLORE.x<xL)       push(xL,zN,xL,zF,0.6,false);
+    else if(EXPLORE.x>xR)  push(xR,zF,xR,zN,0.6,false);
+    if(EXPLORE.z<zN)       push(xR,zN,xL,zN,1.0,true);
+    else if(EXPLORE.z>zF)  push(xL,zF,xR,zF,1.0,true);
+  }
+  faces.sort((p,q)=>q.depth-p.depth);
+  for(const fc of faces){
+    const sh=constrain(map(fc.depth,2,R*CS,1.05,0.32),0.32,1.05)*fc.tone;
+    drawConcreteWalkFace(pg,fc,wall,lite,sh);
+  }
+
+  drawWalkItems(pg,proj,near);
+  pg.pop();
+
+  // far darkness
+  gctx.save();
+  const dk=gctx.createRadialGradient(cx,cy,0,cx,cy,W*0.34);
+  dk.addColorStop(0,'rgba(6,7,9,0.6)'); dk.addColorStop(1,'rgba(6,7,9,0)');
+  gctx.fillStyle=dk; gctx.fillRect(cx-W*0.36,cy-W*0.36,W*0.72,W*0.72); gctx.restore();
+
+  applyGrain(pg, BG.grain);
+  applyVignette(pg);
+  drawWalkHUD(pg,cx,cy);
+}
+
+function drawConcreteWalkFace(pg,fc,wall,lite,sh){
+  const g=pg.drawingContext, r=red(wall),gg=green(wall),bb=blue(wall);
+  const top=sh*1.12, bot=sh*0.7;
+  const mx0=(fc.a.x+fc.b.x)/2,my0=(fc.a.y+fc.b.y)/2, mx1=(fc.d.x+fc.c.x)/2,my1=(fc.d.y+fc.c.y)/2;
+  g.save();
+  const grad=g.createLinearGradient(mx0,my0,mx1,my1);
+  grad.addColorStop(0,`rgb(${clamp255(r*top)},${clamp255(gg*top)},${clamp255(bb*top)})`);
+  grad.addColorStop(1,`rgb(${clamp255(r*bot)},${clamp255(gg*bot)},${clamp255(bb*bot)})`);
+  g.beginPath(); g.moveTo(fc.a.x,fc.a.y); g.lineTo(fc.b.x,fc.b.y); g.lineTo(fc.c.x,fc.c.y); g.lineTo(fc.d.x,fc.d.y); g.closePath();
+  g.fillStyle=grad; g.fill(); g.restore();
+  // concrete streaks
+  const wpx=Math.hypot(fc.b.x-fc.a.x,fc.b.y-fc.a.y);
+  if(wpx>40){
+    pg.stroke(clamp255(r*sh*0.72),clamp255(gg*sh*0.72),clamp255(bb*sh*0.72),60); pg.strokeWeight(1);
+    for(let kk=1;kk<4;kk++){ const u=kk/4; const a=faceUV(fc,u,0.08), c=faceUV(fc,u,0.92); pg.line(a.x,a.y,c.x,c.y); }
+    pg.noStroke();
+  }
+  // yellow safety stripe at the base
+  const A=faceUV(fc,0,0.86),B=faceUV(fc,1,0.86),C=faceUV(fc,1,1),D=faceUV(fc,0,1);
+  pg.fill(clamp255(202*sh),clamp255(170*sh),clamp255(44*sh)); pg.quad(A.x,A.y,B.x,B.y,C.x,C.y,D.x,D.y);
+  // "F" marking plate on marked front faces
+  if(fc.front && fc.mark && wpx>46){
+    const pa=faceUV(fc,0.3,0.3), pb=faceUV(fc,0.7,0.3), pc=faceUV(fc,0.7,0.6), pd=faceUV(fc,0.3,0.6);
+    pg.fill(clamp255(230*sh),clamp255(228*sh),clamp255(220*sh)); pg.quad(pa.x,pa.y,pb.x,pb.y,pc.x,pc.y,pd.x,pd.y);
+    const cxp=(pa.x+pc.x)/2, cyp=(pa.y+pc.y)/2, fs=Math.hypot(pd.x-pa.x,pd.y-pa.y)*0.95;
+    if(fs>6){ pg.fill(40,40,42); pg.textAlign(CENTER,CENTER); pg.textFont('monospace'); pg.textSize(fs); pg.text('F',cxp,cyp); pg.textAlign(LEFT,BASELINE); }
+  }
+}
+
 function drawWalkHUD(pg,cx,cy){
   const W=pg.width,H=pg.height;
   // crosshair
@@ -820,7 +1055,8 @@ function drawWalkHUD(pg,cx,cy){
   // control hint
   pg.fill(0,0,0,120); pg.rect(14,H-58,256,44);
   pg.fill(232,214,150); pg.textFont('monospace'); pg.textSize(11);
-  pg.text('▶ EXPLORE · LEVEL 0', 24, H-40);
+  const S=BG_SCENES[BG.scene]||BG_SCENES.lobby;
+  pg.text('▶ EXPLORE · LEVEL '+S.level, 24, H-40);
   pg.fill(180,168,120);
   pg.text('W A S D move   ← → turn   ESC exit', 24, H-23);
   // objective (top-left)
