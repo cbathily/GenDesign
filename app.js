@@ -33,7 +33,7 @@ function windowResized(){
 function draw(){
   const t=frameCount*0.01;
   if(activeTab==='background'){
-    if(EXPLORE.on && (BG.scene==='lobby'||BG.scene==='habitable')){ updateExplore(); drawSceneWalk(this); }
+    if(EXPLORE.on && WALKABLE[BG.scene]){ updateExplore(); drawSceneWalk(this); }
     else drawBackground(this,t);
   } else if(activeTab==='entity'){
     drawEntity(this, mx, my);
@@ -238,13 +238,15 @@ function setWalkBtn(){
   b.textContent = EXPLORE.on ? '■ EXIT WALK' : '▶ ENTER LEVEL · WALK';
   b.classList.toggle('walking', EXPLORE.on);
 }
+const WALKABLE = { lobby:1, habitable:1, lightsout:1 };
 function toggleExplore(){
-  if(BG.scene!=='lobby' && BG.scene!=='habitable'){ setStatus('walk mode: Lobby & Habitable only.'); return; }
+  if(!WALKABLE[BG.scene]){ setStatus('walk mode: Lobby, Habitable & Lights Out.'); return; }
   EXPLORE.on=!EXPLORE.on;
   if(EXPLORE.on){
     // habitable has a column on the (0,0) cell — start in an aisle
     EXPLORE.x = (BG.scene==='habitable') ? LOBBY_CS : 0;
     EXPLORE.z=0; EXPLORE.yaw=0; EXPLORE.keys={};
+    FLASH.batt=1.0;
     generateWalkWorld();
     setStatus('▶ EXPLORE — find 3 Almond Water, then the EXIT');
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
