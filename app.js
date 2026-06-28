@@ -243,7 +243,8 @@ function toggleExplore(){
   EXPLORE.on=!EXPLORE.on;
   if(EXPLORE.on){
     EXPLORE.x=0; EXPLORE.z=0; EXPLORE.yaw=0; EXPLORE.keys={};
-    setStatus('▶ EXPLORE — WASD move · ← → turn · ESC exit');
+    generateWalkWorld();
+    setStatus('▶ EXPLORE — find 3 Almond Water, then the EXIT');
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
   setWalkBtn();
 }

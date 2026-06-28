@@ -364,6 +364,7 @@ function lobbyBlocked(x,z){
 }
 // read keys, move the camera with per-axis collision (so you slide along walls)
 function updateExplore(){
+  if(WALK.won) return;                       // freeze once escaped
   const k=EXPLORE.keys;
   if(k['ArrowLeft'])  EXPLORE.yaw-=EXPLORE.turn;
   if(k['ArrowRight']) EXPLORE.yaw+=EXPLORE.turn;
@@ -380,7 +381,329 @@ function updateExplore(){
   if(!lobbyBlocked(EXPLORE.x, nz)) EXPLORE.z=nz;
 }
 
+/* ---- WALK MODE ENTITIES (weeping-angel watchers) ---- */
+const WALK_ENT = { list:[], encounters:0, flash:0 };
+function distXZ(ax,az,bx,bz){ return Math.hypot(ax-bx, az-bz); }
+function losBlocked(ax,az,bx,bz){
+  const steps=Math.ceil(distXZ(ax,az,bx,bz)/0.5);
+  for(let i=1;i<steps;i++){ const t=i/steps; if(lobbyBlocked(ax+(bx-ax)*t, az+(bz-az)*t)) return true; }
+  return false;
+}
+function spawnWalkEntity(){
+  for(let tries=0; tries<18; tries++){
+    const ang = EXPLORE.yaw + (Math.random()-0.5)*2.2;      // mostly ahead-ish
+    const dist = 9 + Math.random()*9;
+    const x = EXPLORE.x + Math.sin(ang)*dist;
+    const z = EXPLORE.z + Math.cos(ang)*dist;
+    if(lobbyBlocked(x,z)) continue;
+    if(distXZ(x,z,EXPLORE.x,EXPLORE.z) < 6) continue;
+    WALK_ENT.list.push({
+      x, z, seed:Math.random()*1000,
+      eyes: 2 + (Math.random()*5|0),
+      tall: 1.72 + Math.random()*0.45,         // towers nearly to the ceiling
+      wide: 0.85 + Math.random()*0.4,
+      hunt:false, wob:Math.random()*6,
+    });
+    return;
+  }
+}
+function updateWalkEntities(){
+  // despawn ones left far behind, keep the field populated
+  WALK_ENT.list = WALK_ENT.list.filter(e=> distXZ(e.x,e.z,EXPLORE.x,EXPLORE.z) < 28);
+  let guard=0;
+  while(WALK_ENT.list.length < 4 && guard++ < 6) spawnWalkEntity();
+
+  const s=Math.sin(EXPLORE.yaw), c=Math.cos(EXPLORE.yaw);
+  for(const e of WALK_ENT.list){
+    const dx=e.x-EXPLORE.x, dz=e.z-EXPLORE.z, d=Math.hypot(dx,dz)||1;
+    const dotF=(dx/d)*s + (dz/d)*c;                          // >0 = in front
+    const seen = dotF>0.72 && !losBlocked(EXPLORE.x,EXPLORE.z, e.x,e.z);
+    e.hunt = !seen;
+    if(!seen){
+      // creep toward the player while unobserved (slower than walking)
+      const step=0.062, nx=e.x-(dx/d)*step, nz=e.z-(dz/d)*step;
+      if(!lobbyBlocked(nx,e.z)) e.x=nx;
+      if(!lobbyBlocked(e.x,nz)) e.z=nz;
+    }
+    if(d < 0.95){                                            // caught → scare + reset
+      WALK_ENT.encounters++; WALK_ENT.flash=1;
+      const ang=EXPLORE.yaw+Math.PI+(Math.random()-0.5);
+      e.x=EXPLORE.x+Math.sin(ang)*16; e.z=EXPLORE.z+Math.cos(ang)*16;
+    }
+  }
+  if(WALK_ENT.flash>0) WALK_ENT.flash=Math.max(0, WALK_ENT.flash-0.04);
+}
+function drawWalkEntity(pg, e, proj, near, cx){
+  const base=proj(e.x, LOBBY_FY, e.z); if(base.ez<near) return;
+  if(losBlocked(EXPLORE.x,EXPLORE.z, e.x,e.z)) return;       // hidden behind a block
+  const head=proj(e.x, LOBBY_FY - e.tall, e.z);
+  const h=base.y-head.y; if(h<12) return;
+  const cxs=base.x, topY=head.y, footY=base.y;
+  const w=h*0.06*e.wide;                     // gaunt, pole-thin
+  const fade=constrain(map(base.ez,2,32,1,0.16),0.16,1);
+  const alpha=255*fade;
+  const yAt=(fr)=>topY+fr*h;
+  const shoulderW=w*1.9, hipW=w*1.15, headH=h*0.15;
+
+  // ---- contact shadows under the feet ----
+  pg.noStroke();
+  for(const side of [-1,1]){ pg.fill(0,0,0,60*fade); pg.ellipse(cxs+side*w*3, footY, w*2.4, w*0.6); }
+
+  // ---- legs (long, thin, slight stride) ----
+  for(const side of [-1,1]){
+    const ph=e.seed+(side>0?2.1:0.5);
+    drawSirenLimb(pg, cxs+side*hipW, yAt(0.5), cxs+side*w*3 + Math.sin(ph)*w, footY, w*0.5, ph, alpha, 'foot');
+  }
+
+  // ---- gaunt torso (tapered pole) ----
+  pg.fill(5,5,6,alpha);
+  pg.beginShape();
+  pg.vertex(cxs-shoulderW*1.15, yAt(0.16)); pg.vertex(cxs+shoulderW*1.15, yAt(0.16));
+  pg.vertex(cxs+shoulderW*0.7,  yAt(0.30));
+  pg.vertex(cxs+hipW,           yAt(0.5));
+  pg.vertex(cxs-hipW,           yAt(0.5));
+  pg.vertex(cxs-shoulderW*0.7,  yAt(0.30));
+  pg.endShape(CLOSE);
+  // rib / drip streaks
+  pg.stroke(0,0,0,alpha*0.45); pg.strokeWeight(Math.max(1,w*0.14));
+  for(let i=-1;i<=1;i++) pg.line(cxs+i*shoulderW*0.5, yAt(0.18), cxs+i*shoulderW*0.4+Math.sin(e.seed+i)*w, yAt(0.5));
+  pg.noStroke();
+
+  // ---- very long dangling arms with clawed hands (in front) ----
+  for(const side of [-1,1]){
+    const ph=e.seed+(side>0?3.7:1.3);
+    drawSirenLimb(pg, cxs+side*shoulderW, yAt(0.17), cxs+side*w*2.4 + Math.sin(ph)*w*0.8, yAt(0.9), w*0.42, ph, alpha, 'hand');
+  }
+
+  // ---- siren head ----
+  drawSirenHead(pg, cxs, topY, headH, w, e.seed, alpha, e.hunt, fade);
+}
+
+// long tapering, wobbling limb (foot or clawed hand) as a filled ribbon
+function drawSirenLimb(pg, x0,y0, x1,y1, thick, ph, alpha, end){
+  const K=14, pts=[];
+  for(let k=0;k<=K;k++){
+    const tt=k/K;
+    const wob=Math.sin(ph+tt*5.5)*thick*0.9*(0.25+tt*0.85) + Math.sin(ph*1.9+tt*3)*thick*0.45;
+    pts.push({x:lerp(x0,x1,tt)+wob, y:lerp(y0,y1,tt)});
+  }
+  const left=[],right=[];
+  for(let k=0;k<=K;k++){
+    const tt=k/K, th=lerp(thick*0.55, thick*0.14, tt);
+    const pn=pts[Math.min(K,k+1)], pp=pts[Math.max(0,k-1)];
+    const dx=pn.x-pp.x, dy=pn.y-pp.y, len=Math.hypot(dx,dy)||1;
+    const nx=-dy/len, ny=dx/len;
+    left.push({x:pts[k].x+nx*th, y:pts[k].y+ny*th});
+    right.push({x:pts[k].x-nx*th, y:pts[k].y-ny*th});
+  }
+  pg.fill(5,5,6,alpha); pg.noStroke();
+  pg.beginShape();
+  for(const p of left) pg.vertex(p.x,p.y);
+  for(let k=K;k>=0;k--) pg.vertex(right[k].x,right[k].y);
+  pg.endShape(CLOSE);
+  const f=pts[K], dir=Math.atan2(pts[K].y-pts[K-1].y, pts[K].x-pts[K-1].x);
+  if(end==='hand'){
+    pg.stroke(5,5,6,alpha); pg.strokeWeight(Math.max(1,thick*0.22));
+    for(let c=-1;c<=1;c++){ const a=dir+c*0.45; pg.line(f.x,f.y, f.x+Math.cos(a)*thick*2.0, f.y+Math.sin(a)*thick*2.0); }
+    pg.noStroke();
+  } else {
+    pg.beginShape();
+    pg.vertex(f.x-thick*0.2,f.y); pg.vertex(f.x+thick*0.2,f.y);
+    pg.vertex(f.x+Math.cos(dir)*thick*1.7, f.y+Math.sin(dir)*thick*1.7);
+    pg.endShape(CLOSE);
+  }
+}
+
+// twisted skull + two angled sirens (glow red while hunting)
+function drawSirenHead(pg, cx0, topY, headH, w, seed, alpha, hunt, fade){
+  const cyh=topY+headH*0.55, gctx=pg.drawingContext;
+  pg.noStroke();
+  // two sirens flaring up & out
+  for(const side of [-1,1]){
+    const bx=cx0+side*w*0.3, by=topY+headH*0.45;
+    const tx=cx0+side*w*2.1, ty=topY-headH*0.75;
+    const ang=Math.atan2(ty-by,tx-bx), nx=-Math.sin(ang), ny=Math.cos(ang);
+    const wb=w*0.45, wt=w*0.95;
+    pg.fill(7,7,8,alpha);
+    pg.beginShape();
+    pg.vertex(bx+nx*wb,by+ny*wb); pg.vertex(bx-nx*wb,by-ny*wb);
+    pg.vertex(tx-nx*wt,ty-ny*wt); pg.vertex(tx+nx*wt,ty+ny*wt);
+    pg.endShape(CLOSE);
+    pg.fill(0,0,0,alpha); pg.ellipse(tx,ty, wt*1.7, wt*1.1);   // dark horn mouth
+    if(hunt){ gctx.save();
+      const gr=gctx.createRadialGradient(tx,ty,0,tx,ty,wt*2.2);
+      gr.addColorStop(0,`rgba(225,40,28,${0.55*fade})`); gr.addColorStop(1,'rgba(0,0,0,0)');
+      gctx.fillStyle=gr; gctx.fillRect(tx-wt*2.2,ty-wt*2.2,wt*4.4,wt*4.4); gctx.restore();
+      pg.fill(255,70,50,200*fade); pg.ellipse(tx,ty,wt*0.7,wt*0.7);
+    }
+  }
+  // central twisted skull
+  pg.fill(8,8,9,alpha); pg.ellipse(cx0,cyh, w*1.8, headH*0.95);
+  for(let i=0;i<5;i++){ const a=seed+i*1.5;
+    pg.ellipse(cx0+Math.cos(a)*w*0.5, cyh+Math.sin(a)*headH*0.3, w*0.55, headH*0.42); }
+  // grime sheen
+  pg.fill(56,50,44, 75*fade);
+  for(let i=0;i<4;i++){ const a=seed+i*2.0;
+    pg.ellipse(cx0+Math.cos(a)*w*0.4, cyh+Math.sin(a)*headH*0.2, w*0.2, headH*0.16); }
+}
+
+/* ============================================================
+   LOBBY ESCAPE — items, wall details & objective
+   Sammle Almond Water → schaltet die EXIT-Tür frei → entkomme.
+   ============================================================ */
+const WALK = { items:[], collected:0, need:3, won:false };
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function hashUnit(n){ const x=Math.sin(n*12.9898)*43758.5453; return x-Math.floor(x); }
+function generateWalkWorld(){
+  WALK.items=[]; WALK.collected=0; WALK.won=false;
+  const rnd=mulberry32((BG.seed|0)||1);
+  const placeOpen=(minR,maxR)=>{
+    for(let t=0;t<50;t++){
+      const ang=rnd()*Math.PI*2, d=minR+rnd()*(maxR-minR);
+      const x=Math.sin(ang)*d, z=Math.cos(ang)*d;
+      const i=Math.round(x/LOBBY_CS), j=Math.round(z/LOBBY_CS);
+      if(!lobbyBlock(i,j) && !lobbyBlocked(x,z)) return {x,z};
+    } return null;
+  };
+  for(let n=0;n<6;n++){ const p=placeOpen(5,22); if(p) WALK.items.push({type:'almond',x:p.x,z:p.z,taken:false}); }
+  for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'chair',x:p.x,z:p.z}); }
+  for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'puddle',x:p.x,z:p.z}); }
+  const ep=placeOpen(18,28)||{x:0,z:22}; WALK.items.push({type:'exit',x:ep.x,z:ep.z});
+}
+function updateWalkWorld(){
+  for(const it of WALK.items){
+    const d=distXZ(it.x,it.z,EXPLORE.x,EXPLORE.z);
+    if(it.type==='almond' && !it.taken && d<1.2){ it.taken=true; WALK.collected++; }
+    if(it.type==='exit' && WALK.collected>=WALK.need && !WALK.won && d<1.7){ WALK.won=true; }
+  }
+}
+function faceUV(fc,u,v){
+  const tx=fc.a.x+(fc.b.x-fc.a.x)*u, ty=fc.a.y+(fc.b.y-fc.a.y)*u;
+  const bx=fc.d.x+(fc.c.x-fc.d.x)*u, by=fc.d.y+(fc.c.y-fc.d.y)*u;
+  return {x:tx+(bx-tx)*v, y:ty+(by-ty)*v};
+}
+function clamp255(v){ return Math.max(0,Math.min(255,v|0)); }
+
+// realistic wall face: vertical light gradient + chevron wallpaper + cream trim
+function drawWallFace(pg, fc, wall, sh){
+  const g=pg.drawingContext;
+  const r=red(wall), gg=green(wall), bb=blue(wall);
+  const top=sh*1.16, bot=sh*0.66;                    // lit near ceiling, dark toward floor
+  const mx0=(fc.a.x+fc.b.x)/2, my0=(fc.a.y+fc.b.y)/2, mx1=(fc.d.x+fc.c.x)/2, my1=(fc.d.y+fc.c.y)/2;
+  g.save();
+  const grad=g.createLinearGradient(mx0,my0,mx1,my1);
+  grad.addColorStop(0,`rgb(${clamp255(r*top)},${clamp255(gg*top)},${clamp255(bb*top)})`);
+  grad.addColorStop(1,`rgb(${clamp255(r*bot)},${clamp255(gg*bot)},${clamp255(bb*bot)})`);
+  g.beginPath(); g.moveTo(fc.a.x,fc.a.y); g.lineTo(fc.b.x,fc.b.y); g.lineTo(fc.c.x,fc.c.y); g.lineTo(fc.d.x,fc.d.y); g.closePath();
+  g.fillStyle=grad; g.fill(); g.restore();
+
+  const wpx=Math.hypot(fc.b.x-fc.a.x, fc.b.y-fc.a.y);
+  // chevron wallpaper pattern (only on close, large faces — cheap + crisp)
+  if(wpx>70 && fc.depth<11){
+    pg.stroke(clamp255(r*sh*0.78),clamp255(gg*sh*0.78),clamp255(bb*sh*0.78),130);
+    pg.strokeWeight(1); pg.noFill();
+    const cols=5, rows=7;
+    for(let cI=0;cI<cols;cI++){ const u=(cI+0.5)/cols;
+      for(let rI=0;rI<rows;rI++){ const v=0.10+(rI/rows)*0.78;
+        const tip=faceUV(fc,u,v), L=faceUV(fc,u-0.42/cols,v-0.5/rows), Rr=faceUV(fc,u+0.42/cols,v-0.5/rows);
+        pg.line(L.x,L.y,tip.x,tip.y); pg.line(tip.x,tip.y,Rr.x,Rr.y);
+      } }
+    pg.noStroke();
+  }
+}
+const WALK_GRAFFITI=['LEAVE','NO EXIT','HELP','TURN BACK','17','WHY','△'];
+function drawFaceDecal(pg,fc,sh){
+  const hu=hashUnit(fc.key);
+  if(hu>0.22) return;                                   // most walls stay bare
+  const wpx=Math.hypot(fc.b.x-fc.a.x, fc.b.y-fc.a.y); if(wpx<24) return;
+  const a=200*Math.min(1,sh);
+  if(hu<0.12){                                          // grime stain
+    pg.noStroke();
+    for(let i=0;i<4;i++){
+      const p=faceUV(fc, 0.3+hashUnit(fc.key+i)*0.4, 0.25+hashUnit(fc.key+i*3)*0.4);
+      pg.fill(28,22,10, a*0.5); pg.ellipse(p.x,p.y, wpx*(0.1+hashUnit(fc.key+i)*0.12), wpx*(0.14+hashUnit(fc.key+i)*0.14));
+    }
+  } else {                                              // graffiti / note
+    const word=WALK_GRAFFITI[Math.floor(hu*1000)%WALK_GRAFFITI.length];
+    const ang=Math.atan2(fc.b.y-fc.a.y, fc.b.x-fc.a.x);
+    const c=faceUV(fc,0.5,0.5);
+    pg.push(); pg.translate(c.x,c.y); pg.rotate(ang);
+    pg.fill(46,32,18, a); pg.textAlign(CENTER,CENTER); pg.textFont('monospace'); pg.textSize(Math.max(8,wpx*0.13));
+    pg.text(word,0,0); pg.pop();
+    pg.textAlign(LEFT,BASELINE);
+  }
+}
+function drawWalkItems(pg,proj,near){
+  const list=WALK.items.filter(it=>!(it.type==='almond'&&it.taken))
+    .map(it=>({it,ez:proj(it.x,LOBBY_FY,it.z).ez})).sort((a,b)=>b.ez-a.ez);
+  for(const o of list){
+    if(o.ez<near) continue;
+    if(losBlocked(EXPLORE.x,EXPLORE.z,o.it.x,o.it.z)) continue;
+    drawWalkItem(pg,o.it,proj);
+  }
+}
+function drawWalkItem(pg,it,proj){
+  const base=proj(it.x,LOBBY_FY,it.z); if(base.ez<0.28) return;
+  const fade=constrain(map(base.ez,2,32,1,0.18),0.18,1), a=255*fade, gctx=pg.drawingContext;
+  const cxs=base.x;
+  const ppw=proj(it.x+0.5,LOBBY_FY,it.z).x - proj(it.x-0.5,LOBBY_FY,it.z).x;     // px per world unit
+  const sc=(h)=> base.y - proj(it.x,LOBBY_FY-h,it.z).y;                          // px height of world height h
+  pg.noStroke();
+  if(it.type==='puddle'){
+    const r=Math.abs(ppw)*0.9;
+    pg.fill(18,18,16,90*fade); pg.ellipse(cxs,base.y, r*1.9, r*0.7);
+    gctx.save(); const g=gctx.createRadialGradient(cxs,base.y,0,cxs,base.y,r);
+    g.addColorStop(0,`rgba(225,232,215,${0.18*fade})`); g.addColorStop(1,'rgba(0,0,0,0)');
+    gctx.fillStyle=g; gctx.fillRect(cxs-r,base.y-r*0.5,r*2,r); gctx.restore();
+  } else if(it.type==='chair'){
+    const H=sc(0.55), w=Math.abs(ppw)*0.5;
+    pg.fill(22,19,16,a);
+    pg.rect(cxs-w/2, base.y-H*0.55, w, H*0.12);          // seat
+    pg.rect(cxs-w/2, base.y-H, w*0.16, H*0.5);           // back
+    pg.rect(cxs-w/2, base.y-H*0.55, w*0.09, H*0.55);     // legs
+    pg.rect(cxs+w/2-w*0.09, base.y-H*0.55, w*0.09, H*0.55);
+  } else if(it.type==='almond'){
+    // iconic Almond Water bottle: cream body, silver cap, script label
+    const H=sc(0.56), w=Math.abs(ppw)*0.22, bob=Math.sin(frameCount*0.06+it.x)*H*0.03;
+    const yT=base.y-H+bob, gr=Math.max(w*2.4, sc(0.42));
+    gctx.save(); const g=gctx.createRadialGradient(cxs,yT+H*0.5,0,cxs,yT+H*0.5,gr);
+    g.addColorStop(0,`rgba(245,236,200,${0.34*fade})`); g.addColorStop(1,'rgba(0,0,0,0)');
+    gctx.fillStyle=g; gctx.fillRect(cxs-gr,yT-H*0.2,gr*2,H*1.6); gctx.restore();
+    // body (rounded) + shoulders + neck
+    pg.fill(234,227,198,a);
+    pg.rect(cxs-w/2, yT+H*0.24, w, H*0.76, w*0.2);
+    pg.beginShape();
+      pg.vertex(cxs-w/2, yT+H*0.30); pg.vertex(cxs-w*0.18, yT+H*0.12);
+      pg.vertex(cxs+w*0.18, yT+H*0.12); pg.vertex(cxs+w/2, yT+H*0.30);
+    pg.endShape(CLOSE);
+    pg.rect(cxs-w*0.16, yT+H*0.05, w*0.32, H*0.1);                  // neck
+    // silver cap
+    pg.fill(186,186,190,a); pg.rect(cxs-w*0.2, yT, w*0.4, H*0.07, w*0.06);
+    pg.fill(150,150,156,a); pg.rect(cxs-w*0.2, yT+H*0.045, w*0.4, H*0.02);
+    // label area + script + ORIGINAL band
+    pg.fill(245,239,214,a); pg.rect(cxs-w*0.46, yT+H*0.4, w*0.92, H*0.34);
+    pg.fill(150,72,42,a*0.95); pg.rect(cxs-w*0.3, yT+H*0.48, w*0.6, H*0.045);  // "Almond"
+    pg.fill(150,72,42,a*0.8);  pg.rect(cxs-w*0.24, yT+H*0.55, w*0.48, H*0.035); // "Water"
+    pg.fill(178,150,68,a); pg.rect(cxs-w*0.46, yT+H*0.63, w*0.92, H*0.07);      // gold ORIGINAL band
+    // glass sheen
+    pg.fill(255,255,255,55*fade); pg.rect(cxs-w*0.34, yT+H*0.3, w*0.09, H*0.5, w*0.05);
+  } else if(it.type==='exit'){
+    const H=sc(2.0), w=Math.abs(ppw)*1.15, unlocked=WALK.collected>=WALK.need;
+    const col=unlocked?[42,232,120]:[214,60,48];
+    pg.fill(9,9,10,a); pg.rect(cxs-w/2, base.y-H, w, H);            // frame
+    pg.fill(2,2,3,a);  pg.rect(cxs-w*0.34, base.y-H*0.9, w*0.68, H*0.88); // doorway
+    gctx.save(); const g=gctx.createRadialGradient(cxs,base.y-H*0.8,0,cxs,base.y-H*0.8,w*1.7);
+    g.addColorStop(0,`rgba(${col[0]},${col[1]},${col[2]},${0.42*fade})`); g.addColorStop(1,'rgba(0,0,0,0)');
+    gctx.fillStyle=g; gctx.fillRect(cxs-w*1.7,base.y-H*0.8-w*1.7,w*3.4,w*3.4); gctx.restore();
+    pg.fill(col[0],col[1],col[2],a); pg.rect(cxs-w*0.42, base.y-H*1.06, w*0.84, H*0.13);  // sign box
+    pg.fill(6,6,7,a); pg.textAlign(CENTER,CENTER); pg.textFont('monospace'); pg.textSize(Math.max(7,H*0.085));
+    pg.text(unlocked?'EXIT':'LOCKED', cxs, base.y-H*0.995);
+    pg.textAlign(LEFT,BASELINE);
+  }
+}
+
 function drawLobbyWalk(pg){
+  updateWalkWorld();
   const W=pg.width,H=pg.height,cx=W/2,cy=H*0.5;
   const f=W*0.9, near=0.28;
   const P=BG_SCENES.lobby.pal, amt=0.4;
@@ -395,9 +718,18 @@ function drawLobbyWalk(pg){
   };
 
   pg.push(); pg.colorMode(RGB,255); pg.noStroke();
-  // ceiling + floor planes
-  pg.fill(ceil);  pg.rect(0,0,W,cy);
-  pg.fill(floor); pg.rect(0,cy,W,H-cy);
+  // ceiling + floor planes as moody gradients (darker toward the horizon)
+  const bctx=pg.drawingContext;
+  bctx.save();
+  const cg=bctx.createLinearGradient(0,0,0,cy);
+  cg.addColorStop(0,`rgb(${clamp255(red(ceil)*0.62)},${clamp255(green(ceil)*0.62)},${clamp255(blue(ceil)*0.62)})`);
+  cg.addColorStop(1,`rgb(${clamp255(red(ceil)*0.9)},${clamp255(green(ceil)*0.9)},${clamp255(blue(ceil)*0.9)})`);
+  bctx.fillStyle=cg; bctx.fillRect(0,0,W,cy);
+  const fgr=bctx.createLinearGradient(0,cy,0,H);
+  fgr.addColorStop(0,`rgb(${clamp255(red(floor)*0.5)},${clamp255(green(floor)*0.5)},${clamp255(blue(floor)*0.5)})`);
+  fgr.addColorStop(1,`rgb(${clamp255(red(floor)*0.95)},${clamp255(green(floor)*0.95)},${clamp255(blue(floor)*0.95)})`);
+  bctx.fillStyle=fgr; bctx.fillRect(0,cy,W,H-cy);
+  bctx.restore();
 
   const ci=Math.round(EXPLORE.x/LOBBY_CS), cj=Math.round(EXPLORE.z/LOBBY_CS);
   const R=14;
@@ -417,8 +749,20 @@ function drawLobbyWalk(pg){
       // glowing panel
       const g1=proj(ccx-0.42,LOBBY_CY,ccz-0.42), g2=proj(ccx+0.42,LOBBY_CY,ccz-0.42),
             g3=proj(ccx+0.42,LOBBY_CY,ccz+0.42), g4=proj(ccx-0.42,LOBBY_CY,ccz+0.42);
-      pg.fill(red(lite),green(lite),blue(lite),245*inten);
+      pg.fill(red(lite),green(lite),blue(lite),250*inten);
       pg.quad(g1.x,g1.y,g2.x,g2.y,g3.x,g3.y,g4.x,g4.y);
+      // louver cross (fixture detail)
+      const mt={x:(g1.x+g2.x)/2,y:(g1.y+g2.y)/2}, mb={x:(g4.x+g3.x)/2,y:(g4.y+g3.y)/2};
+      const ml={x:(g1.x+g4.x)/2,y:(g1.y+g4.y)/2}, mr={x:(g2.x+g3.x)/2,y:(g2.y+g3.y)/2};
+      pg.stroke(red(ceil)*0.5,green(ceil)*0.5,blue(ceil)*0.5,160*inten); pg.strokeWeight(1);
+      pg.line(mt.x,mt.y,mb.x,mb.y); pg.line(ml.x,ml.y,mr.x,mr.y); pg.noStroke();
+      // bloom halo around the fixture
+      gctx.save(); gctx.globalCompositeOperation='lighter';
+      const hr=Math.max(12, f*0.55/ctr.ez);
+      const hg=gctx.createRadialGradient(ctr.x,ctr.y,0,ctr.x,ctr.y,hr);
+      hg.addColorStop(0,`rgba(${red(lite)|0},${green(lite)|0},${blue(lite)|0},${0.5*inten})`);
+      hg.addColorStop(1,'rgba(0,0,0,0)');
+      gctx.fillStyle=hg; gctx.fillRect(ctr.x-hr,ctr.y-hr,hr*2,hr*2); gctx.restore();
     }
     // floor pool
     const fp=proj(ccx,LOBBY_FY,ccz);
@@ -435,28 +779,26 @@ function drawLobbyWalk(pg){
   for(let i=ci-R;i<=ci+R;i++) for(let j=cj-R;j<=cj+R;j++){
     const b=lobbyBlock(i,j); if(!b) continue;
     const xL=b.X-b.w/2, xR=b.X+b.w/2, zN=b.Z-b.d/2, zF=b.Z+b.d/2;
-    const push=(x1,z1,x2,z2,tone)=>{
+    const push=(x1,z1,x2,z2,tone,ft)=>{
       const a=proj(x1,LOBBY_CY,z1), bb=proj(x2,LOBBY_CY,z2),
             c=proj(x2,LOBBY_FY,z2), d=proj(x1,LOBBY_FY,z1);
       if(a.ez<near||bb.ez<near||c.ez<near||d.ez<near) return;
-      faces.push({a,b:bb,c,d,depth:(a.ez+bb.ez)/2,tone});
+      faces.push({a,b:bb,c,d,depth:(a.ez+bb.ez)/2,tone, key:i*131+j*977+ft*17});
     };
-    if(EXPLORE.x<xL)       push(xL,zN,xL,zF,0.6);
-    else if(EXPLORE.x>xR)  push(xR,zF,xR,zN,0.6);
-    if(EXPLORE.z<zN)       push(xR,zN,xL,zN,1.0);
-    else if(EXPLORE.z>zF)  push(xL,zF,xR,zF,1.0);
+    if(EXPLORE.x<xL)       push(xL,zN,xL,zF,0.6,0);
+    else if(EXPLORE.x>xR)  push(xR,zF,xR,zN,0.6,1);
+    if(EXPLORE.z<zN)       push(xR,zN,xL,zN,1.0,2);
+    else if(EXPLORE.z>zF)  push(xL,zF,xR,zF,1.0,3);
   }
   faces.sort((p,q)=>q.depth-p.depth);
   for(const fc of faces){
-    const sh=constrain(map(fc.depth,2,R*LOBBY_CS,1.05,0.32),0.32,1.05)*fc.tone;
-    pg.fill(red(wall)*sh,green(wall)*sh,blue(wall)*sh);
-    pg.quad(fc.a.x,fc.a.y,fc.b.x,fc.b.y,fc.c.x,fc.c.y,fc.d.x,fc.d.y);
-    // top light wash
-    const lp=(u,v,t)=>({x:u.x+(v.x-u.x)*t,y:u.y+(v.y-u.y)*t});
-    const mL=lp(fc.a,fc.d,0.45), mR=lp(fc.b,fc.c,0.45);
-    pg.fill(red(lite),green(lite),blue(lite),22*sh);
-    pg.quad(fc.a.x,fc.a.y,fc.b.x,fc.b.y,mR.x,mR.y,mL.x,mL.y);
+    const sh=constrain(map(fc.depth,2,R*LOBBY_CS,1.05,0.30),0.30,1.05)*fc.tone;
+    drawWallFace(pg,fc,wall,sh);
+    drawFaceDecal(pg,fc,sh);                              // stains / graffiti
   }
+
+  // ---- items: almond water, exit, chairs, puddles (far -> near) ----
+  drawWalkItems(pg,proj,near);
   pg.pop();
 
   // ---- far darkness toward the horizon ----
@@ -471,7 +813,7 @@ function drawLobbyWalk(pg){
 }
 
 function drawWalkHUD(pg,cx,cy){
-  const H=pg.height;
+  const W=pg.width,H=pg.height;
   // crosshair
   pg.stroke(230,225,200,150); pg.strokeWeight(1);
   pg.line(cx-6,cy,cx+6,cy); pg.line(cx,cy-6,cx,cy+6); pg.noStroke();
@@ -481,6 +823,21 @@ function drawWalkHUD(pg,cx,cy){
   pg.text('▶ EXPLORE · LEVEL 0', 24, H-40);
   pg.fill(180,168,120);
   pg.text('W A S D move   ← → turn   ESC exit', 24, H-23);
+  // objective (top-left)
+  const unlocked=WALK.collected>=WALK.need;
+  pg.textFont('monospace'); pg.textSize(12);
+  pg.fill(150,200,240); pg.text('◇ ALMOND WATER  '+WALK.collected+' / '+WALK.need, 20, 26);
+  pg.fill(unlocked?[70,230,130]:[210,90,80]);
+  pg.text(unlocked?'◇ EXIT  UNLOCKED — find the door':'◇ EXIT  LOCKED', 20, 44);
+  // win overlay
+  if(WALK.won){
+    pg.fill(0,0,0,180); pg.rect(0,0,W,H);
+    pg.textAlign(CENTER,CENTER);
+    pg.fill(70,230,130); pg.textSize(34); pg.text('YOU ESCAPED', cx, cy-14);
+    pg.fill(200,230,210); pg.textSize(14); pg.text('Level 0 — The Lobby', cx, cy+18);
+    pg.fill(150,150,140); pg.textSize(12); pg.text('press ESC to return', cx, cy+44);
+    pg.textAlign(LEFT,BASELINE);
+  }
 }
 
 function drawVoidRoom(pg,cx,cy,wall,floor,ceil,lite){
