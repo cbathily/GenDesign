@@ -33,10 +33,10 @@ function windowResized(){
 function draw(){
   const t=frameCount*0.01;
   if(activeTab==='background'){
-    if(EXPLORE.on && (BG.scene==='lobby'||BG.scene==='habitable')){ updateExplore(); drawSceneWalk(this); }
+    if(EXPLORE.on && (BG.scene==='lobby'||BG.scene==='habitable'||BG.scene==='lightsout')){ updateExplore(); drawSceneWalk(this); }
     else drawBackground(this,t);
   } else if(activeTab==='entity'){
-    drawEntity(this, mx, my);
+    drawEntity(this, mx, my, t);
   } else {
     drawAudioViz(this,t);
   }
@@ -159,6 +159,8 @@ function bindTabs(){
       activeTab=tab.dataset.tab;
       $all('.panel-page').forEach(p=>p.classList.remove('active'));
       $(`.panel-page[data-panel="${activeTab}"]`).classList.add('active');
+      // close 3D view when leaving entity tab
+      if(activeTab!=='entity') close3D();
       const labels={background:'SIGNAL // BACKGROUND',entity:'SIGNAL // ENTITY',audio:'SIGNAL // AUDIO'};
       $('#stage-label').textContent=labels[activeTab];
       setStatus(activeTab+' module loaded.');
@@ -206,6 +208,8 @@ function bindBackground(){
   bind('bg-fog','fog',v=>v.toFixed(2));
 
   bindSeg('bg-geo',v=>{BG.geo=v; setStatus('geometry: '+v);});
+  window.LOBBY_FIGURE='2d';
+  bindSeg('bg-figure',v=>{ window.LOBBY_FIGURE=v; setStatus('lobby-figur: '+v); });
   bindChips('bg-scenes',name=>{
     exitExplore();
     bgApplyScene(name);
@@ -239,7 +243,7 @@ function setWalkBtn(){
   b.classList.toggle('walking', EXPLORE.on);
 }
 function toggleExplore(){
-  if(BG.scene!=='lobby' && BG.scene!=='habitable'){ setStatus('walk mode: Lobby & Habitable only.'); return; }
+  if(BG.scene!=='lobby' && BG.scene!=='habitable' && BG.scene!=='lightsout'){ setStatus('walk mode: Lobby, Habitable & Lights Out only.'); return; }
   EXPLORE.on=!EXPLORE.on;
   if(EXPLORE.on){
     // habitable has a column on the (0,0) cell — start in an aisle
@@ -314,8 +318,68 @@ function syncBgUI(){
 // ============================================================
 //  ENTITY CONTROLS
 // ============================================================
+let _3dActive = false;
+let _3dModel  = 'bacteria';
+
+// markiert den aktiven Modell-Button + Panel-Umschalter
+function sync3DButtons(){
+  $('#ent-3d-bacteria') ?.classList.toggle('active', _3dActive && _3dModel==='bacteria');
+  $('#ent-3d-papermask')?.classList.toggle('active', _3dActive && _3dModel==='papermask');
+  $('#ent-3d-pennywise')?.classList.toggle('active', _3dActive && _3dModel==='pennywise');
+  const seg=$('#ent-3d-model');
+  if(seg) seg.querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active', b.dataset.v===_3dModel));
+}
+
+// 3D-Ansicht mit gewähltem Modell öffnen (gleiches Modell erneut → schließen)
+function open3D(model){
+  if(_3dActive && _3dModel===model){ close3D(); return; }
+  _3dModel = model;
+  const host=$('#entity-3d-host'), controls=$('#ent-3d-controls');
+  if(!_3dActive){
+    _3dActive=true;
+    if(host) host.style.display='block';
+    if(controls) controls.style.display='block';
+    noLoop();
+    const canvas3d=$('#entity-3d-canvas');
+    const tryInit=()=>{
+      if(window.init3D){
+        window.setModel3D?.(model);  // vor Init: setzt nur currentModelKey; nach Init: lädt Modell
+        window.init3D(canvas3d);      // erstes Mal: lädt currentModelKey; danach no-op
+        window.apply3DParams?.();
+      } else setTimeout(tryInit,80);
+    };
+    tryInit();
+  } else {
+    window.setModel3D?.(model);       // bereits offen → Modell wechseln
+  }
+  sync3DButtons();
+  setStatus('3D figur: '+model+' · ziehe zum Drehen');
+}
+
+// Modell wechseln, ohne 3D zu schließen (für Panel-Umschalter)
+function switchModel3D(model){
+  if(!_3dActive){ open3D(model); return; }
+  if(model===_3dModel) return;
+  _3dModel=model;
+  window.setModel3D?.(model);
+  sync3DButtons();
+  setStatus('3D figur: '+model);
+}
+
+function close3D(){
+  if(!_3dActive) return;
+  _3dActive=false;
+  const host=$('#entity-3d-host'), controls=$('#ent-3d-controls');
+  if(host) host.style.display='none';
+  if(controls) controls.style.display='none';
+  loop();
+  sync3DButtons();
+  setStatus('generator mode.');
+}
+
 function bindEntity(){
-  const rebuild=()=>{ENT_cache=null;};
+  const notify3d = () => { if(_3dActive) window.apply3DParams?.(); };
+  const rebuild=()=>{ ENT_cache=null; notify3d(); };
   const bind=(id,key,fmt,scale)=>{
     const el=$('#'+id), out=$('#'+id+'-v');
     el.addEventListener('input',()=>{
@@ -328,47 +392,75 @@ function bindEntity(){
   bind('ent-limblen','limbLen',v=>v.toFixed(2),true);
   bind('ent-eyes','eyes');
 
-  bindSeg('ent-track',v=>{ENT.track=+v; $('#ent-track-v').textContent=v==='1'?'on':'off';});
+  bindSeg('ent-track',v=>{ENT.track=+v; $('#ent-track-v').textContent=v==='1'?'on':'off'; notify3d();});
   bindSeg('ent-shape',v=>{ENT.shape=v; rebuild(); setStatus('silhouette: '+v);});
+  bindSeg('ent-headtype',v=>{ENT.headType=v; rebuild(); setStatus('head: '+v);});
+  bindSeg('ent-eyetype',v=>{ENT.eyeType=v; rebuild(); setStatus('eye type: '+v);});
+  bindSeg('ent-mouth',v=>{ENT.mouthType=v; rebuild(); setStatus('mouth: '+v);});
+  bindSeg('ent-bodyextra',v=>{ENT.bodyExtra=v; rebuild(); setStatus('body extra: '+v);});
   bindSeg('ent-render',v=>{ENT.render=v; setStatus('render: '+v);});
+  bindSeg('ent-limbstyle',v=>{ENT.limbStyle=v; rebuild(); setStatus('limb style: '+v);});
+
+  // colour sliders — no cache rebuild (colour computed at draw time)
+  const bindCol=(id,key,fmt)=>{
+    const el=$('#'+id), out=$('#'+id+'-v');
+    el.addEventListener('input',()=>{ ENT[key]=+el.value; out.textContent=fmt(+el.value); notify3d(); });
+  };
+  bindCol('ent-hue','bodyHue',v=>Math.round(v));
+  bindCol('ent-sat','bodySat',v=>Math.round(v)+'%');
 
   bindChips('ent-presets',name=>{
     entApplyPreset(name); syncEntUI(); rebuild(); setStatus('preset: '+name);
   });
 
+  // ---- ENT3D body controls (show when 3D active) ----
+  const bindEnt3d=(id,key,fmt)=>{
+    const el=$('#'+id), out=$('#'+id+'-v');
+    if(!el) return;
+    el.addEventListener('input',()=>{
+      window.ENT3D = window.ENT3D || {};
+      window.ENT3D[key]=+el.value;
+      if(out) out.textContent=fmt ? fmt(+el.value) : +el.value;
+      window.apply3DParams?.();
+    });
+  };
+  bindEnt3d('e3d-height', 'bodyHeight', v=>Math.round(v)+'%');
+  bindEnt3d('e3d-width',  'bodyWidth',  v=>Math.round(v)+'%');
+  bindEnt3d('e3d-arms',   'addArms',    v=>Math.round(v));
+  bindEnt3d('e3d-legs',   'addLegs',    v=>Math.round(v));
+  bindEnt3d('e3d-eyes',   'eyes',       v=>Math.round(v));
+  bindEnt3d('e3d-hue',    'colorHue',   v=>Math.round(v)+'°');
+  bindEnt3d('e3d-sat',    'colorSat',   v=>Math.round(v)+'%');
+
+  // 3D-Modell-Umschalter im Panel (wechselt ohne zu schließen)
+  bindSeg('ent-3d-model', v=>switchModel3D(v));
+
+  // 3D-Figur öffnen — beide Modelle als gleichwertige Optionen
+  $('#ent-3d-bacteria') ?.addEventListener('click',()=>open3D('bacteria'));
+  $('#ent-3d-papermask')?.addEventListener('click',()=>open3D('papermask'));
+  $('#ent-3d-pennywise')?.addEventListener('click',()=>open3D('pennywise'));
+
   $('#ent-regen').addEventListener('click',()=>{
     ENT.seed=Math.floor(Math.random()*99999); rebuild(); setSeed(ENT.seed); setStatus('regenerated.');
   });
-  $('#ent-apply').addEventListener('click',()=>interpretEntPrompt($('#ent-prompt').value));
   $('#ent-save').addEventListener('click',()=>saveCanvasPNG('entity'));
 }
 
-function interpretEntPrompt(txt){
-  const t=txt.toLowerCase();
-  if(t.match(/tall|long|watcher|thin|lang/)) ENT.shape='tall';
-  else if(t.match(/blob|round|mass|fat/)) ENT.shape='blob';
-  else if(t.match(/human|person|player|avatar|figur/)) ENT.shape='humanoid';
-
-  const eyeM=t.match(/(\d+)\s*eye/); if(eyeM) ENT.eyes=Math.min(24,+eyeM[1]);
-  else if(t.match(/many eye|eyed|augen|covered/)) ENT.eyes=14;
-  else if(t.match(/one eye|single/)) ENT.eyes=1;
-
-  if(t.match(/leg|limb|crawl|spider|arm/)) ENT.limbs=6;
-  if(t.match(/thin|long limb|dünn/)) ENT.limbLen=0.95;
-  if(t.match(/pixel|gameboy|1.?bit|dither/)) ENT.render='dither';
-  else if(t.match(/photo|grain|polaroid|vhs/)) ENT.render='photo-grain';
-
-  syncEntUI(); ENT_cache=null;
-  ENT.seed=Math.floor(Math.random()*99999); setSeed(ENT.seed);
-  setStatus('interpreted: "'+txt.slice(0,28)+'"');
-}
 function syncEntUI(){
   $('#ent-mass').value=ENT.mass*100; $('#ent-mass-v').textContent=ENT.mass.toFixed(2);
   $('#ent-limbs').value=ENT.limbs; $('#ent-limbs-v').textContent=ENT.limbs;
   $('#ent-limblen').value=ENT.limbLen*100; $('#ent-limblen-v').textContent=ENT.limbLen.toFixed(2);
   $('#ent-eyes').value=ENT.eyes; $('#ent-eyes-v').textContent=ENT.eyes;
   $('#ent-shape').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===ENT.shape));
+  $('#ent-track').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===String(ENT.track)));
+  $('#ent-headtype').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===(ENT.headType||'none')));
+  $('#ent-eyetype').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===(ENT.eyeType||'normal')));
+  $('#ent-mouth').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===(ENT.mouthType||'none')));
+  $('#ent-bodyextra').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===(ENT.bodyExtra||'none')));
   $('#ent-render').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===ENT.render));
+  $('#ent-limbstyle').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===ENT.limbStyle));
+  $('#ent-hue').value=ENT.bodyHue; $('#ent-hue-v').textContent=Math.round(ENT.bodyHue);
+  $('#ent-sat').value=ENT.bodySat; $('#ent-sat-v').textContent=Math.round(ENT.bodySat)+'%';
   $('#ent-presets').querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===ENT.preset));
 }
 

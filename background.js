@@ -660,6 +660,83 @@ function drawSirenHead(pg, cx0, topY, headH, w, seed, alpha, hunt, fade){
 }
 
 /* ============================================================
+   PAPER-MASK FOLLOWER  (nur Lobby)
+   Folgt dem Spieler kontinuierlich — KEINE Spiellogik (kein Fangen,
+   kein Scare, kein Game-Over). Stoppt dicht vor dem Spieler.
+   ============================================================ */
+const FOLLOWER = { x:0, z:0, active:false, wob:Math.random()*6 };
+
+function resetFollower(){ FOLLOWER.active=false; }
+
+function spawnFollower(){
+  const ang = EXPLORE.yaw + Math.PI + (Math.random()-0.5)*0.6;   // hinter dem Spieler
+  for(let r=11; r>=3; r-=0.5){
+    const x=EXPLORE.x+Math.sin(ang)*r, z=EXPLORE.z+Math.cos(ang)*r;
+    if(!lobbyBlocked(x,z)){ FOLLOWER.x=x; FOLLOWER.z=z; FOLLOWER.wob=Math.random()*6; FOLLOWER.active=true; return; }
+  }
+  FOLLOWER.x=EXPLORE.x; FOLLOWER.z=EXPLORE.z-6; FOLLOWER.active=true;
+}
+
+function updateFollower(){
+  if(!FOLLOWER.active){ spawnFollower(); return; }
+  const dx=EXPLORE.x-FOLLOWER.x, dz=EXPLORE.z-FOLLOWER.z, d=Math.hypot(dx,dz)||1;
+  if(d > 1.1){                       // folgt bis dicht dran, dann stehen bleiben
+    const step=0.075;                // etwas langsamer als der Spieler (0.11)
+    const nx=FOLLOWER.x+(dx/d)*step, nz=FOLLOWER.z+(dz/d)*step;
+    if(!lobbyBlocked(nx,FOLLOWER.z)) FOLLOWER.x=nx;   // per-Achse → an Wänden entlanggleiten
+    if(!lobbyBlocked(FOLLOWER.x,nz)) FOLLOWER.z=nz;
+  }
+}
+
+// Billboard-Follower: zeigt entweder die 2D-Entity (Entity-Tab) ODER ein
+// gerendertes 3D-Modell — je nach Auswahl window.LOBBY_FIGURE.
+let entSpriteBuf = null;
+function drawPaperMaskFollower(pg, proj, near){
+  const e=FOLLOWER; if(!e.active) return;
+  const base=proj(e.x, LOBBY_FY, e.z); if(base.ez<near) return;
+  if(losBlocked(EXPLORE.x,EXPLORE.z, e.x,e.z)) return;         // hinter einem Block verdeckt
+  const top=proj(e.x, LOBBY_FY - 1.95, e.z);
+  const h=base.y-top.y; if(h<16) return;
+  const fade=constrain(map(base.ez,2,32,1,0.18),0.18,1);
+
+  const fig=(typeof window!=='undefined' && window.LOBBY_FIGURE) || '2d';
+
+  // ---- 3D-Modell als Billboard (Bacteria / Paper Mask / Pennywise) ----
+  if(fig!=='2d'){
+    const cv=(typeof window.getModelSpriteCanvas==='function') ? window.getModelSpriteCanvas(fig) : null;
+    if(cv && cv.width>0){
+      const targetH=h, targetW=targetH*(cv.width/cv.height);
+      const dx=base.x-targetW/2, dy=base.y-targetH;          // Füße auf base.y
+      pg.noStroke(); pg.fill(0,0,0,70*fade);
+      pg.ellipse(base.x, base.y, targetW*0.8, targetW*0.18);
+      const gc=pg.drawingContext;
+      gc.save(); gc.globalAlpha=fade; gc.drawImage(cv, dx, dy, targetW, targetH); gc.restore();
+      return;
+    }
+    // lädt noch → fällt unten auf 2D-Entity zurück
+  }
+
+  // ---- 2D-Entity als Sprite (= exakt die Figur aus dem Entity-Tab) ----
+  if(typeof drawEntitySprite!=='function') return;            // entity.js noch nicht geladen
+  if(!entSpriteBuf) entSpriteBuf = createGraphics(440, 660);
+  const b=drawEntitySprite(entSpriteBuf, frameCount*0.02);
+  if(typeof BG!=='undefined') noiseSeed(BG.seed);             // Lobby-Noise wiederherstellen
+  if(!b) return;
+  const figW=b.maxX-b.minX, figH=b.maxY-b.minY;
+  if(figW<=0 || figH<=0) return;
+
+  const scale=h/figH, targetW=figW*scale, targetH=h;
+  const dx=base.x-targetW/2, dy=base.y-targetH;               // Füße auf base.y
+  pg.noStroke(); pg.fill(0,0,0,70*fade);
+  pg.ellipse(base.x, base.y, targetW*0.8, targetW*0.16);
+  pg.push();
+  pg.tint(255, 255*fade);
+  pg.image(entSpriteBuf, dx, dy, targetW, targetH, b.minX, b.minY, figW, figH);
+  pg.noTint();
+  pg.pop();
+}
+
+/* ============================================================
    LOBBY ESCAPE — items, wall details & objective
    Sammle Almond Water → schaltet die EXIT-Tür frei → entkomme.
    ============================================================ */
@@ -681,6 +758,7 @@ function generateWalkWorld(){
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'chair',x:p.x,z:p.z}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'puddle',x:p.x,z:p.z}); }
   const ep=placeOpen(18,28)||{x:0,z:22}; WALK.items.push({type:'exit',x:ep.x,z:ep.z});
+  resetFollower();   // Follower spawnt frisch beim nächsten Lobby-Frame
 }
 function updateWalkWorld(){
   for(const it of WALK.items){
@@ -814,13 +892,19 @@ function drawWalkItem(pg,it,proj){
   }
 }
 
-function drawLobbyWalk(pg){
+function drawLobbyWalk(pg, dark){
   updateWalkWorld();
+  updateFollower();                 // Follower (Lobby + Lights Out)
   const W=pg.width,H=pg.height,cx=W/2,cy=H*0.5;
   const f=W*0.9, near=0.28;
   const P=BG_SCENES.lobby.pal, amt=0.4;
-  const wall=hueShift(P.wall,BG.hue,amt), floor=hueShift(P.floor,BG.hue,amt),
-        ceil=hueShift(P.ceil,BG.hue,amt), lite=hueShift(P.light,BG.hue,amt);
+  let wall=hueShift(P.wall,BG.hue,amt), floor=hueShift(P.floor,BG.hue,amt),
+      ceil=hueShift(P.ceil,BG.hue,amt), lite=hueShift(P.light,BG.hue,amt);
+  // Lights Out: Räume abdunkeln, Deckenlampen fast aus
+  if(dark){
+    const dim=(co,fc)=>color(red(co)*fc, green(co)*fc, blue(co)*fc);
+    wall=dim(wall,0.42); floor=dim(floor,0.40); ceil=dim(ceil,0.34); lite=dim(lite,0.22);
+  }
   const sN=Math.sin(EXPLORE.yaw), cN=Math.cos(EXPLORE.yaw);
   // world -> screen (camera relative). returns {ez, x, y}
   const proj=(wx,wy,wz)=>{
@@ -919,13 +1003,33 @@ function drawLobbyWalk(pg){
   dk.addColorStop(0,'rgba(8,7,4,0.55)'); dk.addColorStop(1,'rgba(8,7,4,0)');
   gctx.fillStyle=dk; gctx.fillRect(cx-W*0.36,cy-W*0.36,W*0.72,W*0.72); gctx.restore();
 
+  // ---- Lights Out: Taschenlampen-Kegel (Mitte hell, Ränder schwarz) ----
+  if(dark){
+    gctx.save();
+    const fr=W*0.46, fy=cy*1.04;
+    const fl=gctx.createRadialGradient(cx,fy,fr*0.10, cx,fy,fr);
+    fl.addColorStop(0,   'rgba(0,0,0,0)');
+    fl.addColorStop(0.55,'rgba(0,0,0,0.45)');
+    fl.addColorStop(1,   'rgba(0,0,0,0.97)');
+    gctx.fillStyle=fl; gctx.fillRect(0,0,W,H); gctx.restore();
+  }
+
+  // ---- Follower ZULETZT (über der Dunkelheit) → in Lights Out sichtbar ----
+  pg.push(); pg.colorMode(RGB,255); pg.noStroke();
+  drawPaperMaskFollower(pg, proj, near);
+  pg.pop();
+
   applyGrain(pg, BG.grain);
   applyVignette(pg);
   drawWalkHUD(pg,cx,cy);
 }
 
 // dispatch first-person walk by active scene
-function drawSceneWalk(pg){ if(BG.scene==='habitable') drawHabitableWalk(pg); else drawLobbyWalk(pg); }
+function drawSceneWalk(pg){
+  if(BG.scene==='habitable')      drawHabitableWalk(pg);
+  else if(BG.scene==='lightsout') drawLobbyWalk(pg, true);   // begehbar + dunkel
+  else                            drawLobbyWalk(pg, false);
+}
 
 function drawHabitableWalk(pg){
   updateWalkWorld();

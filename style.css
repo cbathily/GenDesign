@@ -300,6 +300,9 @@ body{
 
 .ctrl{margin-top:20px}
 .ctrl-label{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:7px}
+.ctrl-sep{margin:22px 0 8px;border-top:1px solid var(--line);padding-top:14px}
+.ctrl-sep span{font-family:var(--mono,monospace);font-size:10px;letter-spacing:2px;color:var(--gold);opacity:.8;text-transform:uppercase}
+.ent-3d-hint{margin-top:12px;font-family:var(--serif);font-size:12px;line-height:1.4;color:var(--ink);opacity:.6;font-style:italic}
 .ctrl-label span{font-family:var(--serif);font-size:15px;letter-spacing:.5px;color:var(--ink)}
 .ctrl-label em{font-family:var(--serif);font-size:15px;font-style:normal;font-weight:600;color:var(--gold)}
 
@@ -340,6 +343,7 @@ input[type=range]::-moz-range-thumb{
   box-shadow:inset 0 1px 0 rgba(255,235,180,.08),inset 0 -3px 7px rgba(0,0,0,.5),0 2px 3px rgba(0,0,0,.4);
 }
 .btn-ghost:hover{border-color:var(--gold-dim);background-color:var(--bg-soft)}
+.btn-ghost.active{border-color:var(--gold);color:var(--gold);box-shadow:inset 0 0 10px rgba(217,194,58,.25),0 0 8px rgba(217,194,58,.2)}
 .btn-solid{
   background-color:var(--gold);
   background-image:linear-gradient(160deg,var(--gold-glow),var(--gold)),var(--noise);
