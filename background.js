@@ -498,7 +498,7 @@ function lobbyBlocked(x,z){
 }
 // read keys, move the camera with per-axis collision (so you slide along walls)
 function updateExplore(){
-  if(WALK.won) return;                       // freeze once escaped
+  if(WALK.won || WALK.dead) return;          // freeze once escaped / killed
   const k=EXPLORE.keys;
   if(k['ArrowLeft'])  EXPLORE.yaw-=EXPLORE.turn;
   if(k['ArrowRight']) EXPLORE.yaw+=EXPLORE.turn;
@@ -685,7 +685,12 @@ function drawSirenHead(pg, cx0, topY, headH, w, seed, alpha, hunt, fade){
    LOBBY ESCAPE — items, wall details & objective
    Sammle Almond Water → schaltet die EXIT-Tür frei → entkomme.
    ============================================================ */
-const WALK = { items:[], props:[], collected:0, need:3, won:false };
+const WALK = { items:[], props:[], collected:0, need:3, won:false,
+  // Lights Out survival layer
+  hp:100, hpMax:100, code:'', guess:'', codeMarks:[], unlocked:false, dead:false,
+  atDoor:false, hurt:0, msg:'', msgT:0 };
+// the stalker entity that hunts you in Lights Out (repelled by the flashlight beam)
+const STALKER = { x:0, z:0, active:false, lit:false, hitCd:0, repel:0, seed:0 };
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
 function hashUnit(n){ const x=Math.sin(n*12.9898)*43758.5453; return x-Math.floor(x); }
 function generateWalkWorld(){
@@ -709,6 +714,62 @@ function generateWalkWorld(){
     const T=['crate','stack','barrel','shelf','boxes','cone','crate','boxes'];
     for(let n=0;n<26;n++){ const p=placeOpen(3,27); if(p) WALK.props.push({type:T[(rnd()*T.length)|0], x:p.x, z:p.z}); }
   }
+  // ---- Lights Out survival setup: reset HP, build the 4-digit door code, hunt entity ----
+  WALK.hp=WALK.hpMax; WALK.guess=''; WALK.unlocked=false; WALK.dead=false;
+  WALK.atDoor=false; WALK.hurt=0; WALK.msg=''; WALK.msgT=0; WALK.code=''; WALK.codeMarks=[]; WALK.pathMarks=[];
+  STALKER.active=false;
+  if(BG.scene==='lightsout'){
+    for(let k=0;k<4;k++) WALK.code += (1+(rnd()*9|0));           // 4 digits 1..9
+    // place 4 numbered code plates on walls, spread out
+    for(let k=0;k<4;k++){
+      for(let t=0;t<260;t++){
+        const i=((rnd()*36)|0)-18, j=((rnd()*36)|0)-18;
+        if(!lightsoutWall(i,j)) continue;
+        const dirs=[];
+        if(!lightsoutWall(i-1,j)) dirs.push('-x'); if(!lightsoutWall(i+1,j)) dirs.push('+x');
+        if(!lightsoutWall(i,j-1)) dirs.push('-z'); if(!lightsoutWall(i,j+1)) dirs.push('+z');
+        if(!dirs.length) continue;
+        let ok=true; for(const u of WALK.codeMarks){ if(Math.hypot(i-u.i,j-u.j)<5){ ok=false; break; } }
+        if(!ok) continue;
+        WALK.codeMarks.push({ i, j, dir:dirs[(rnd()*dirs.length)|0], pos:k+1, digit:WALK.code[k] });
+        break;
+      }
+    }
+    // spawn the stalker a safe distance from the player's start
+    const sa=rnd()*Math.PI*2;
+    STALKER.x=EXPLORE.x+Math.sin(sa)*14; STALKER.z=EXPLORE.z+Math.cos(sa)*14;
+    STALKER.active=true; STALKER.lit=false; STALKER.hitCd=0; STALKER.repel=0; STALKER.seed=rnd()*1000;
+  }
+}
+// BFS through the open cells from the player's start to the exit; drop directional
+// markers along the route so the player can follow the trail to the door.
+function survBuildPath(){
+  WALK.pathMarks=[];
+  const exit=WALK.items.find(it=>it.type==='exit'); if(!exit) return;
+  const CS=LOBBY_CS, R=30;
+  const si=Math.round(EXPLORE.x/CS), sj=Math.round(EXPLORE.z/CS);
+  const ti=Math.round(exit.x/CS),   tj=Math.round(exit.z/CS);
+  const key=(i,j)=>i+'_'+j;
+  const prev={}; prev[key(si,sj)]='';
+  const q=[[si,sj]]; let head=0, found=false;
+  while(head<q.length){
+    const [i,j]=q[head++];
+    if(i===ti && j===tj){ found=true; break; }
+    for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const ni=i+d[0], nj=j+d[1];
+      if(Math.abs(ni)>R||Math.abs(nj)>R||lightsoutWall(ni,nj)) continue;
+      const k=key(ni,nj); if(k in prev) continue;
+      prev[k]=key(i,j); q.push([ni,nj]);
+    }
+  }
+  if(!found) return;
+  const path=[]; let cur=key(ti,tj);
+  while(cur){ const [i,j]=cur.split('_').map(Number); path.push([i,j]); cur=prev[cur]; }
+  path.reverse();                                  // start -> exit
+  for(let n=0;n<path.length-1;n+=2){
+    const a=path[n], b=path[Math.min(n+1,path.length-1)];
+    WALK.pathMarks.push({ x:a[0]*CS, z:a[1]*CS, yaw:Math.atan2(b[0]-a[0], b[1]-a[1]) });
+  }
 }
 // props block movement (no walking through crates)
 function propBlocked(x,z){
@@ -719,12 +780,77 @@ function propBlocked(x,z){
   return false;
 }
 function updateWalkWorld(){
+  const surv = BG.scene==='lightsout';
   for(const it of WALK.items){
     const d=distXZ(it.x,it.z,EXPLORE.x,EXPLORE.z);
-    if(it.type==='almond' && !it.taken && d<1.2){ it.taken=true; WALK.collected++; }
-    if(it.type==='battery' && !it.taken && d<1.2){ it.taken=true; FLASH.batt=Math.min(1, FLASH.batt+0.6); }
-    if(it.type==='exit' && WALK.collected>=WALK.need && !WALK.won && d<1.7){ WALK.won=true; }
+    if(it.type==='almond' && !it.taken && d<1.2){
+      it.taken=true;
+      if(surv){ WALK.hp=Math.min(WALK.hpMax, WALK.hp+34); survMsg('+34 HP — Almond Water'); }
+      else WALK.collected++;
+    }
+    if(it.type==='battery' && !it.taken && d<1.2){ it.taken=true; FLASH.batt=Math.min(1, FLASH.batt+0.6); if(surv) survMsg('Battery +60%'); }
+    if(it.type==='exit'){
+      const unlocked = surv ? WALK.unlocked : (WALK.collected>=WALK.need);
+      if(surv){ const near=d<2.3;
+        if(!near && WALK.atDoor) WALK.guess='';   // leaving the door clears any half-typed code
+        WALK.atDoor=near; }
+      if(unlocked && !WALK.won && d<1.7) WALK.won=true;
+    }
   }
+  if(surv) updateSurvival();
+}
+function survMsg(m){ WALK.msg=m; WALK.msgT=110; }
+// the stalker: creeps toward you in the dark, is pushed back when caught in the beam,
+// claws your HP when it reaches you unlit. Run out of HP = dead.
+function updateSurvival(){
+  if(WALK.msgT>0) WALK.msgT--;
+  if(WALK.hurt>0) WALK.hurt=Math.max(0,WALK.hurt-0.05);
+  if(STALKER.hitCd>0) STALKER.hitCd--;
+  if(WALK.won || WALK.dead || !STALKER.active) return;
+  const sx=STALKER.x-EXPLORE.x, sz=STALKER.z-EXPLORE.z, d=Math.hypot(sx,sz)||1;
+  const s=Math.sin(EXPLORE.yaw), c=Math.cos(EXPLORE.yaw);
+  const dotF=(sx/d)*s + (sz/d)*c;                                  // >0 = in front of the player
+  const beam=(typeof FLASH!=='undefined')?FLASH.beam:1;
+  const lit = beam>0.22 && dotF>0.55 && d<13 && !losBlocked(EXPLORE.x,EXPLORE.z, STALKER.x,STALKER.z);
+  STALKER.lit=lit;
+  if(lit){
+    STALKER.repel=1;                                              // beam in its face → it backs off
+    const step=0.05, nx=STALKER.x+(sx/d)*step, nz=STALKER.z+(sz/d)*step;
+    if(!lobbyBlocked(nx,STALKER.z)) STALKER.x=nx;
+    if(!lobbyBlocked(STALKER.x,nz)) STALKER.z=nz;
+  } else {
+    STALKER.repel=Math.max(0,STALKER.repel-0.03);
+    const step=0.066, nx=STALKER.x-(sx/d)*step, nz=STALKER.z-(sz/d)*step;   // creep closer
+    if(!lobbyBlocked(nx,STALKER.z)) STALKER.x=nx;
+    if(!lobbyBlocked(STALKER.x,nz)) STALKER.z=nz;
+    if(d<1.45 && STALKER.hitCd<=0){                               // attack
+      WALK.hp=Math.max(0, WALK.hp-9); WALK.hurt=1; STALKER.hitCd=26; survMsg('-9 HP — it caught you');
+      const ang=Math.atan2(sx,sz);                               // shove it back so it isn't instant death
+      STALKER.x=EXPLORE.x+Math.sin(ang)*3.2; STALKER.z=EXPLORE.z+Math.cos(ang)*3.2;
+      if(WALK.hp<=0){ WALK.dead=true; survMsg('YOU DIED'); }
+    }
+  }
+}
+// keypad at the exit door — type the 4 digits found on the walls
+function survKeypad(code){
+  if(BG.scene!=='lightsout') return false;
+  if(WALK.dead){ if(code==='KeyR'){ restartLightsout(); return true; } return false; }
+  if(WALK.won || WALK.unlocked || !WALK.atDoor) return false;
+  if(code==='Backspace'){ WALK.guess=WALK.guess.slice(0,-1); return true; }
+  if(code==='Enter'){
+    if(WALK.guess===WALK.code){ WALK.unlocked=true; survMsg('ACCESS GRANTED — door open'); }
+    else { survMsg('✗ WRONG CODE'); WALK.guess=''; }
+    return true;
+  }
+  const m=code.match(/^(?:Digit|Numpad)([0-9])$/);
+  if(m){ if(WALK.guess.length<4) WALK.guess+=m[1]; return true; }
+  return false;
+}
+function restartLightsout(){
+  EXPLORE.x=2*LOBBY_CS; EXPLORE.z=2*LOBBY_CS; EXPLORE.yaw=0; EXPLORE.keys={};
+  if(typeof FLASH!=='undefined') FLASH.batt=1.0;
+  generateWalkWorld();
+  if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
 }
 function faceUV(fc,u,v){
   const tx=fc.a.x+(fc.b.x-fc.a.x)*u, ty=fc.a.y+(fc.b.y-fc.a.y)*u;
@@ -1266,6 +1392,7 @@ function drawWalkHUD(pg,cx,cy){
   pg.text('▶ EXPLORE · LEVEL '+S.level, 24, H-40);
   pg.fill(180,168,120);
   pg.text('W A S D move   ← → turn   ESC exit', 24, H-23);
+  if(BG.scene==='lightsout'){ drawSurvivalHUD(pg,cx,cy); return; }
   // objective (top-left)
   const unlocked=WALK.collected>=WALK.need;
   pg.textFont('monospace'); pg.textSize(12);
@@ -1278,6 +1405,82 @@ function drawWalkHUD(pg,cx,cy){
     pg.textAlign(CENTER,CENTER);
     pg.fill(70,230,130); pg.textSize(34); pg.text('YOU ESCAPED', cx, cy-14);
     pg.fill(200,230,210); pg.textSize(14); pg.text('Level 0 — The Lobby', cx, cy+18);
+    pg.fill(150,150,140); pg.textSize(12); pg.text('press ESC to return', cx, cy+44);
+    pg.textAlign(LEFT,BASELINE);
+  }
+}
+// Lights Out survival HUD: HP, objective/code progress, keypad, hurt flash, death/win
+function drawSurvivalHUD(pg,cx,cy){
+  const W=pg.width,H=pg.height; pg.textFont('monospace'); pg.noStroke();
+  // hurt flash (red) when the stalker lands a hit
+  if(WALK.hurt>0){ pg.fill(150,0,0, 150*WALK.hurt); pg.rect(0,0,W,H); }
+  // HP bar (top-left)
+  const hx=20, hy=24, hw=160, hh=13, frac=WALK.hp/WALK.hpMax;
+  pg.fill(0,0,0,150); pg.rect(hx-3,hy-3,hw+6,hh+6);
+  pg.fill(48,16,16); pg.rect(hx,hy,hw,hh);
+  pg.fill(frac>0.4?210:235, 50, 50); pg.rect(hx,hy,hw*frac,hh);
+  pg.fill(235,205,205); pg.textSize(10); pg.textAlign(LEFT,TOP); pg.text('HP '+Math.ceil(WALK.hp), hx, hy+hh+4);
+  // objective (top-left, below HP)
+  pg.textSize(12);
+  pg.fill(WALK.unlocked?[80,230,140]:[210,170,90]);
+  pg.text(WALK.unlocked ? '◇ DOOR OPEN — step through to escape'
+                        : '◇ FIND THE 4-DIGIT CODE  (numbers on the walls)', 20, hy+hh+22);
+  pg.fill(170,170,180);
+  pg.text('◇ then enter it at the door keypad', 20, hy+hh+40);
+  // stalker proximity warning
+  if(STALKER.active && !WALK.won && !WALK.dead){
+    const d=distXZ(STALKER.x,STALKER.z,EXPLORE.x,EXPLORE.z);
+    if(d<6 && !STALKER.lit){ pg.fill(220,40,40, 160+Math.sin(frameCount*0.5)*60); pg.textSize(13);
+      pg.textAlign(CENTER,TOP); pg.text('!! IT IS NEAR — SHINE YOUR LIGHT !!', cx, 14); pg.textAlign(LEFT,BASELINE); }
+  }
+  // exit compass — arrow pointing toward the door + distance
+  if(!WALK.won && !WALK.dead){
+    const exit=WALK.items.find(it=>it.type==='exit');
+    if(exit){
+      const dx=exit.x-EXPLORE.x, dz=exit.z-EXPLORE.z, dist=Math.hypot(dx,dz);
+      const s=Math.sin(EXPLORE.yaw), c=Math.cos(EXPLORE.yaw);
+      const bear=Math.atan2(dx*c-dz*s, dx*s+dz*c);   // 0 = ahead, + = to the right
+      const ay=66, r=13;
+      pg.push(); pg.translate(cx,ay); pg.rotate(bear); pg.noStroke();
+      pg.fill(WALK.unlocked?[80,230,140]:[235,205,95]);
+      pg.triangle(0,-r, -r*0.62, r*0.52, r*0.62, r*0.52);
+      pg.pop();
+      pg.fill(220,210,165); pg.textFont('monospace'); pg.textSize(11); pg.textAlign(CENTER,TOP);
+      pg.text((WALK.unlocked?'DOOR ':'EXIT ')+Math.round(dist)+'m', cx, ay+r+2); pg.textAlign(LEFT,BASELINE);
+    }
+  }
+  // transient message
+  if(WALK.msgT>0 && WALK.msg){ pg.fill(235,230,210, Math.min(255, WALK.msgT*5)); pg.textSize(13);
+    pg.textAlign(CENTER,CENTER); pg.text(WALK.msg, cx, cy-H*0.16); pg.textAlign(LEFT,BASELINE); }
+  // keypad overlay when standing at the door
+  if(WALK.atDoor && !WALK.unlocked && !WALK.won && !WALK.dead){
+    const bw=210, bh=104, bx=cx-bw/2, by=cy-bh/2;
+    pg.fill(0,0,0,210); pg.rect(bx,by,bw,bh);
+    pg.stroke(90,230,140); pg.strokeWeight(1.5); pg.noFill(); pg.rect(bx,by,bw,bh); pg.noStroke();
+    pg.fill(120,230,160); pg.textSize(12); pg.textAlign(CENTER,TOP); pg.text('DOOR KEYPAD', cx, by+10);
+    // digit slots
+    const slots=4, gap=42, sw=30, sy=by+38, x0=cx-((slots-1)*gap)/2;
+    for(let i=0;i<slots;i++){ const sx=x0+i*gap-sw/2;
+      pg.fill(18,26,20); pg.rect(sx,sy,sw,38);
+      pg.fill(170,255,200); pg.textSize(26); pg.textAlign(CENTER,CENTER);
+      pg.text(WALK.guess[i]||'_', sx+sw/2, sy+20);
+    }
+    pg.fill(150,180,160); pg.textSize(10); pg.textAlign(CENTER,TOP);
+    pg.text('type digits · ENTER submit · ⌫ delete', cx, by+bh-16); pg.textAlign(LEFT,BASELINE);
+  }
+  // death overlay
+  if(WALK.dead){
+    pg.fill(0,0,0,200); pg.rect(0,0,W,H); pg.textAlign(CENTER,CENTER);
+    pg.fill(220,50,50); pg.textSize(38); pg.text('YOU DIED', cx, cy-16);
+    pg.fill(200,180,180); pg.textSize(13); pg.text('the dark took you', cx, cy+16);
+    pg.fill(150,150,140); pg.textSize(12); pg.text('press R to retry   ·   ESC to leave', cx, cy+44);
+    pg.textAlign(LEFT,BASELINE);
+  }
+  // win overlay
+  if(WALK.won){
+    pg.fill(0,0,0,190); pg.rect(0,0,W,H); pg.textAlign(CENTER,CENTER);
+    pg.fill(70,230,130); pg.textSize(34); pg.text('YOU ESCAPED', cx, cy-14);
+    pg.fill(200,230,210); pg.textSize(14); pg.text('Level 6 — Lights Out', cx, cy+18);
     pg.fill(150,150,140); pg.textSize(12); pg.text('press ESC to return', cx, cy+44);
     pg.textAlign(LEFT,BASELINE);
   }
