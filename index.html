@@ -8,10 +8,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
   <div id="boot-screen">
@@ -46,17 +46,6 @@
     <section class="stage">
       <div class="stage-frame">
         <div id="canvas-host"></div>
-
-        <!-- 3D model overlay — shown when 3D VIEW is active.
-             z-index 8 = ÜBER Scanlines(6)/Overlay(5), damit das Modell
-             clean und solide rendert (nicht ausgewaschen). -->
-        <div id="entity-3d-host" style="display:none;position:absolute;inset:0;z-index:8;background:#bfae90;">
-          <canvas id="entity-3d-canvas" style="width:100%;height:100%;display:block;"></canvas>
-          <div id="ent-3d-label" style="position:absolute;bottom:8px;left:12px;font-family:monospace;font-size:11px;color:#5a4f40;letter-spacing:1px;pointer-events:none;">
-            BACTERIA — KANE PIXELS BACKROOMS · 3D EDIT
-          </div>
-        </div>
-
         <div class="stage-overlay">
           <span class="stage-label" id="stage-label">SIGNAL // BACKGROUND</span>
           <span class="stage-rec">● REC</span>
@@ -135,16 +124,6 @@
           </div>
         </div>
 
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Lobby-Figur (folgt dir)</span></div>
-          <div class="seg" id="bg-figure">
-            <button class="seg-btn active" data-v="2d">2D entity</button>
-            <button class="seg-btn" data-v="bacteria">bacteria 3D</button>
-            <button class="seg-btn" data-v="papermask">paper mask 3D</button>
-            <button class="seg-btn" data-v="pennywise">pennywise 3D</button>
-          </div>
-        </div>
-
         <button class="btn-solid wide walk-btn" id="bg-walk">▶ ENTER LEVEL · WALK</button>
 
         <div class="action-row">
@@ -160,169 +139,62 @@
           <p>Spielfiguren & Monster. Augen die zurückstarren.</p>
         </div>
 
+        <div class="prompt-row">
+          <label>PROMPT / WESEN</label>
+          <input type="text" id="ent-prompt" placeholder="z.B. tall watcher, many eyes, thin limbs" value="eyed blob creature">
+          <button class="apply-btn" id="ent-apply">→ INTERPRET</button>
+        </div>
+
         <div class="preset-row" id="ent-presets">
-          <button class="chip active" data-preset="bacteria">bacteria</button>
-          <button class="chip" data-preset="papermask">paper mask</button>
-          <button class="chip" data-preset="kitty">kitty</button>
-          <button class="chip" data-preset="aranea">aranea</button>
-          <button class="chip" data-preset="siren_h">siren head</button>
-          <button class="chip" data-preset="stalker">stalker</button>
-          <button class="chip" data-preset="watcher">watcher</button>
+          <button class="chip active" data-preset="watcher">watcher</button>
+          <button class="chip" data-preset="blob">eye-blob</button>
           <button class="chip" data-preset="crawler">crawler</button>
-          <button class="chip" data-preset="amalgam">amalgam</button>
-          <button class="chip" data-preset="parasite">parasite</button>
-          <button class="chip" data-preset="eyeblob">eye-blob</button>
+          <button class="chip" data-preset="player">player avatar</button>
         </div>
 
         <div class="ctrl">
-          <div class="ctrl-label"><span>Body Mass</span><em id="ent-mass-v">0.35</em></div>
-          <input type="range" id="ent-mass" min="10" max="100" value="35">
+          <div class="ctrl-label"><span>Body Mass</span><em id="ent-mass-v">0.6</em></div>
+          <input type="range" id="ent-mass" min="10" max="100" value="60">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Limbs</span><em id="ent-limbs-v">4</em></div>
-          <input type="range" id="ent-limbs" min="0" max="8" value="4">
+          <div class="ctrl-label"><span>Limbs</span><em id="ent-limbs-v">2</em></div>
+          <input type="range" id="ent-limbs" min="0" max="8" value="2">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Limb Length</span><em id="ent-limblen-v">1.0</em></div>
-          <input type="range" id="ent-limblen" min="10" max="100" value="100">
+          <div class="ctrl-label"><span>Limb Length</span><em id="ent-limblen-v">0.7</em></div>
+          <input type="range" id="ent-limblen" min="10" max="100" value="70">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Eyes</span><em id="ent-eyes-v">0</em></div>
-          <input type="range" id="ent-eyes" min="0" max="24" value="0">
+          <div class="ctrl-label"><span>Eyes</span><em id="ent-eyes-v">9</em></div>
+          <input type="range" id="ent-eyes" min="0" max="24" value="9">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Eye Tracking</span><em id="ent-track-v">off</em></div>
+          <div class="ctrl-label"><span>Eye Tracking</span><em id="ent-track-v">on</em></div>
           <div class="seg" id="ent-track">
-            <button class="seg-btn" data-v="1">track cursor</button>
-            <button class="seg-btn active" data-v="0">static</button>
+            <button class="seg-btn active" data-v="1">track cursor</button>
+            <button class="seg-btn" data-v="0">static</button>
           </div>
         </div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Silhouette</span></div>
           <div class="seg" id="ent-shape">
-            <button class="seg-btn active" data-v="figure">figure</button>
-            <button class="seg-btn" data-v="spider">spider</button>
-            <button class="seg-btn" data-v="blob">blob</button>
+            <button class="seg-btn active" data-v="blob">blob</button>
             <button class="seg-btn" data-v="tall">tall</button>
             <button class="seg-btn" data-v="humanoid">humanoid</button>
           </div>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Head Type</span></div>
-          <div class="seg" id="ent-headtype">
-            <button class="seg-btn active" data-v="hat">hut</button>
-            <button class="seg-btn" data-v="mask">maske</button>
-            <button class="seg-btn" data-v="siren">siren</button>
-            <button class="seg-btn" data-v="round">rund</button>
-            <button class="seg-btn" data-v="none">kein</button>
-          </div>
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Eye Type</span></div>
-          <div class="seg" id="ent-eyetype">
-            <button class="seg-btn active" data-v="normal">normal</button>
-            <button class="seg-btn" data-v="void">void</button>
-            <button class="seg-btn" data-v="bleeding">blutend</button>
-            <button class="seg-btn" data-v="compound">insekt</button>
-          </div>
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Mund / Body Extra</span></div>
-          <div class="seg" id="ent-mouth">
-            <button class="seg-btn active" data-v="none">kein</button>
-            <button class="seg-btn" data-v="gape">gaffen</button>
-            <button class="seg-btn" data-v="teeth">zähne</button>
-            <button class="seg-btn" data-v="multi">multi</button>
-          </div>
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Body Extra</span></div>
-          <div class="seg" id="ent-bodyextra">
-            <button class="seg-btn active" data-v="none">kein</button>
-            <button class="seg-btn" data-v="spines">stacheln</button>
-            <button class="seg-btn" data-v="holes">löcher</button>
-            <button class="seg-btn" data-v="glow">glow</button>
-          </div>
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Body Hue</span><em id="ent-hue-v">0</em></div>
-          <input type="range" id="ent-hue" min="0" max="360" value="0">
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Colour Intensity</span><em id="ent-sat-v">0%</em></div>
-          <input type="range" id="ent-sat" min="0" max="100" value="0">
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Limb Style</span></div>
-          <div class="seg" id="ent-limbstyle">
-            <button class="seg-btn" data-v="long">lang</button>
-            <button class="seg-btn" data-v="tentacle">tentakel</button>
-            <button class="seg-btn active" data-v="jointed">gegliedert</button>
-            <button class="seg-btn" data-v="many">viele</button>
-          </div>
-        </div>
-        <div class="ctrl">
           <div class="ctrl-label"><span>Dither / Render</span></div>
           <div class="seg" id="ent-render">
-            <button class="seg-btn" data-v="solid">solid</button>
+            <button class="seg-btn active" data-v="solid">solid</button>
             <button class="seg-btn" data-v="dither">1-bit dither</button>
-            <button class="seg-btn active" data-v="photo-grain">photo-grain</button>
-          </div>
-        </div>
-
-        <div class="ctrl">
-          <div class="ctrl-label"><span>▚ 3D FIGUR ÖFFNEN</span></div>
-          <div class="action-row">
-            <button class="btn-ghost" id="ent-3d-bacteria">↗ BACTERIA</button>
-            <button class="btn-ghost" id="ent-3d-papermask">↗ PAPER MASK</button>
-            <button class="btn-ghost" id="ent-3d-pennywise">↗ PENNYWISE</button>
+            <button class="seg-btn" data-v="grain">photo-grain</button>
           </div>
         </div>
 
         <div class="action-row">
           <button class="btn-ghost" id="ent-regen">⟳ REGENERATE</button>
           <button class="btn-solid" id="ent-save">↓ SAVE PNG</button>
-        </div>
-
-        <!-- 3D-Modell direkt bearbeiten — nur sichtbar wenn 3D-View aktiv -->
-        <div id="ent-3d-controls" style="display:none;">
-          <div class="ctrl-sep"><span>3D MODELL · DIREKT BEARBEITEN</span></div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>3D Figur</span></div>
-            <div class="seg" id="ent-3d-model">
-              <button class="seg-btn active" data-v="bacteria">bacteria</button>
-              <button class="seg-btn" data-v="papermask">paper mask</button>
-              <button class="seg-btn" data-v="pennywise">pennywise</button>
-            </div>
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>Körpergröße</span><em id="e3d-height-v">100%</em></div>
-            <input type="range" id="e3d-height" min="40" max="200" value="100">
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>Körperbreite</span><em id="e3d-width-v">100%</em></div>
-            <input type="range" id="e3d-width" min="40" max="200" value="100">
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>Arme hinzufügen</span><em id="e3d-arms-v">0</em></div>
-            <input type="range" id="e3d-arms" min="0" max="8" value="0">
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>Beine hinzufügen</span><em id="e3d-legs-v">0</em></div>
-            <input type="range" id="e3d-legs" min="0" max="6" value="0">
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>Augen hinzufügen</span><em id="e3d-eyes-v">0</em></div>
-            <input type="range" id="e3d-eyes" min="0" max="24" value="0">
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>Körperfarbe</span><em id="e3d-hue-v">0°</em></div>
-            <input type="range" id="e3d-hue" min="0" max="360" value="0">
-          </div>
-          <div class="ctrl">
-            <div class="ctrl-label"><span>Farb-Intensität</span><em id="e3d-sat-v">0%</em></div>
-            <input type="range" id="e3d-sat" min="0" max="100" value="0">
-          </div>
         </div>
       </div>
 
@@ -341,10 +213,10 @@
     </aside>
   </main>
 
-  <script src="background.js?v=27"></script>
-  <script src="entity.js?v=22"></script>
-  <script src="audio.js?v=20"></script>
-  <script src="app.js?v=28"></script>
-  <script type="module" src="entity3d.js?v=9"></script>
+  <script src="background.js?v=38"></script>
+  <script src="entity.js?v=38"></script>
+  <script src="audio.js?v=38"></script>
+  <script src="lightsout3d.js?v=38"></script>
+  <script src="app.js?v=38"></script>
 </body>
 </html>
