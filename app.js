@@ -131,25 +131,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 
 // ---------- boot ----------
 function bootSequence(){
-  const log=$('#boot-log');
-  const lines=[
-    '> initializing render core ......... ok',
-    '> loading p5.js v1.9 .............. ok',
-    '> loading tone.js audio engine .... ok',
-    '> mounting palette: dreamcore ..... ok',
-    '> calibrating liminal space .......',
-    '> WARNING: reality coherence low',
-    '> ready.',
-  ];
-  let i=0;
-  const iv=setInterval(()=>{
-    log.textContent += lines[i] + '\n';
-    i++;
-    if(i>=lines.length){
-      clearInterval(iv);
-      $('#boot-enter').classList.add('show');
-    }
-  },360);
+  $('#boot-enter').classList.add('show');
   $('#boot-enter').addEventListener('click',()=>{
     $('#boot-screen').classList.add('gone');
   });
@@ -226,9 +208,6 @@ function bindBackground(){
     BG.seed=Math.floor(Math.random()*99999); noiseSeed(BG.seed); setSeed(BG.seed);
     setStatus('regenerated.');
   });
-  $('#bg-apply').addEventListener('click',()=>{
-    interpretBgPrompt($('#bg-prompt').value);
-  });
   $('#bg-save').addEventListener('click',()=>saveCanvasPNG('background'));
 
   const walkBtn=$('#bg-walk');
@@ -278,38 +257,6 @@ function bindExploreKeys(){
   window.addEventListener('keyup',e=>{ EXPLORE.keys[e.code]=false; });
 }
 
-// crude but effective prompt -> parameter mapping
-function interpretBgPrompt(txt){
-  const t=txt.toLowerCase();
-  // pick a scene from the prompt
-  if(t.match(/ocean|deep ?water|abyss|thalasso|sea|underwater|drown/)) bgApplyScene('thalasso');
-  else if(t.match(/pool|water|aquatic|flood|tile/))      bgApplyScene('pool');
-  else if(t.match(/cave|rock|cavern|stalact|underground/)) bgApplyScene('cave');
-  else if(t.match(/dark|black|lights ?out|flashlight|pitch/)) bgApplyScene('lightsout');
-  else if(t.match(/hotel|door|carpet|corridor room|terror/)) bgApplyScene('hotel');
-  else if(t.match(/office|cubicle|desk|work|monitor/))   bgApplyScene('office');
-  else if(t.match(/electric|substation|transformer|spark|cable|power/)) bgApplyScene('substation');
-  else if(t.match(/play|ball ?pit|kid|child|tube|rainbow/)) bgApplyScene('playplace');
-  else if(t.match(/suburb|street|house|neighbo|outdoor|night/)) bgApplyScene('suburb');
-  else if(t.match(/pipe|rust|machine|boiler|hot|steam/))  bgApplyScene('pipes');
-  else if(t.match(/concrete|industrial|stair|habitable|grey|gray/)) bgApplyScene('habitable');
-  else if(t.match(/pink|dream|pastel|rosa|nostalg/))      bgApplyScene('dreamcore');
-  else                                                     bgApplyScene('lobby');
-
-  // manual geometry override
-  if(t.match(/pillar|column|säul/)) BG.geo='pillars';
-  else if(t.match(/void|empty|leer/)) BG.geo='void';
-
-  // mood tweaks layered on top of the scene defaults
-  if(t.match(/fog|haze|mist|nebel/)) BG.fog=0.6;
-  if(t.match(/dark|dim|deep|dunkel/)) BG.light=0.25;
-  if(t.match(/bright|glow|hell/)) BG.light=0.85;
-  if(t.match(/grain|vhs|old|retro/)) BG.grain=0.7;
-
-  showSceneInfo(BG.scene);
-  syncBgUI(); setStatus('interpreted: "'+txt.slice(0,28)+'"');
-  BG.seed=Math.floor(Math.random()*99999); noiseSeed(BG.seed); setSeed(BG.seed);
-}
 // update the LEVEL plate + description for a scene
 function showSceneInfo(name){
   const s=BG_SCENES[name]; if(!s) return;
@@ -374,11 +321,20 @@ function bindEntity(){
   $('#ent-regen').addEventListener('click',()=>{
     ENT.seed=Math.floor(Math.random()*99999); setSeed(ENT.seed); setStatus('regenerated.');
   });
-  $('#ent-apply').addEventListener('click',()=>interpretEntPrompt($('#ent-prompt').value));
   $('#ent-save').addEventListener('click',()=>saveCanvasPNG('entity'));
   $('#ent-save-monster').addEventListener('click',saveMonster);
 
   syncEntUI();   // align controls with ENT defaults on load
+}
+
+// Button-Feedback: zeigt kurz "✓ GESPEICHERT", damit klar ist, dass es geklappt hat
+function flashSavedBtn(sel){
+  const b=$(sel); if(!b) return;
+  if(b._savedTimer) clearTimeout(b._savedTimer);
+  if(!b._origLabel) b._origLabel=b.textContent;
+  b.textContent='✓ GESPEICHERT — MONSTER IST IM SPIEL';
+  b.classList.add('saved');
+  b._savedTimer=setTimeout(()=>{ b.textContent=b._origLabel; b.classList.remove('saved'); b._savedTimer=null; }, 2800);
 }
 
 // render the current entity to a transparent sprite + register it as the
@@ -402,7 +358,8 @@ function saveMonster(){
   _monsterGfx=buf;
   SAVED_MONSTER={ img:buf.canvas, box:{minX,minY,w:maxX-minX+1,h:maxY-minY+1} };
   if(EXPLORE.on && typeof monsterSpawn==='function') monsterSpawn();   // sofort sichtbar, falls schon im Walk
-  setStatus('💾 Monster gespeichert — erscheint im Walk-Modus (Background-Tab → ENTER LEVEL).');
+  flashSavedBtn('#ent-save-monster');
+  setStatus('Monster gespeichert — erscheint im Walk-Modus (Background-Tab → ENTER LEVEL).');
 }
 
 // ============================================================
@@ -495,26 +452,10 @@ function save3DMonster(){
   if(!found){ setStatus('Sprite leer — Monster nicht gespeichert.'); return; }
   SAVED_MONSTER={ img:snap, box:{minX,minY,w:maxX-minX+1,h:maxY-minY+1} };
   if(EXPLORE.on && typeof monsterSpawn==='function') monsterSpawn();
-  setStatus('💾 3D-Monster gespeichert — erscheint im Walk-Mode (Background-Tab → ENTER LEVEL).');
+  flashSavedBtn('#ent3d-save-monster');
+  setStatus('3D-Monster gespeichert — erscheint im Walk-Mode (Background-Tab → ENTER LEVEL).');
 }
 
-// light prompt -> preset / field mapping
-function interpretEntPrompt(txt){
-  const t=txt.toLowerCase();
-  for(const name in ENT_PRESETS){ if(t.includes(name)){ entApplyPreset(name); break; } }
-  if(t.match(/spider|insect|spinne/))      ENT.legs='many';
-  if(t.match(/ghost|geist|float|schweb/))  ENT.body='floating', ENT.legs='none';
-  if(t.match(/robot|mech|maschine/))       ENT.body='mechanical', ENT.skin='metal';
-  if(t.match(/demon|dämon|devil|teufel/))  ENT.accHorns='curved', ENT.accWings='demon';
-  if(t.match(/snake|serpent|wurm|schlange/)) ENT.body='serpentine';
-  if(t.match(/many eye|augen|eyed/))       ENT.eyes=8;
-  if(t.match(/glow|leucht/))               ENT.eyeType='glowing';
-  if(t.match(/pixel|gameboy|1.?bit|dither/)) ENT.render='dither';
-  else if(t.match(/photo|grain|polaroid|vhs/)) ENT.render='photo-grain';
-  syncEntUI();
-  ENT.seed=Math.floor(Math.random()*99999); setSeed(ENT.seed);
-  setStatus('interpreted: "'+txt.slice(0,28)+'"');
-}
 
 function syncEntUI(){
   // sliders

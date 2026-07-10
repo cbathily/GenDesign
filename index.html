@@ -33,7 +33,6 @@
       </pre>
       <div class="boot-title">LIMINAL</div>
       <div class="boot-sub">dreamcore asset generator</div>
-      <div class="boot-log" id="boot-log"></div>
       <button id="boot-enter">[ ENTER ]</button>
     </div>
   </div>
@@ -100,12 +99,6 @@
           <p class="scene-desc" id="bg-scene-desc">Endloses gelbes Tapetenlabyrinth, summende Leuchtstoffröhren, fleckiger Teppich.</p>
         </div>
 
-        <div class="prompt-row">
-          <label>PROMPT / STIMMUNG</label>
-          <input type="text" id="bg-prompt" placeholder="z.B. flooded pink hallway, balloons, fog" value="endless yellow rooms">
-          <button class="apply-btn" id="bg-apply">→ INTERPRET</button>
-        </div>
-
         <div class="ctrl">
           <div class="ctrl-label"><span>Hue / Palette</span><em id="bg-hue-v">50</em></div>
           <input type="range" id="bg-hue" min="0" max="360" value="50">
@@ -127,7 +120,7 @@
           <input type="range" id="bg-fog" min="0" max="100" value="30">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Geometry</span></div>
+          <div class="ctrl-label"><span>Raumstruktur</span></div>
           <div class="seg" id="bg-geo">
             <button class="seg-btn active" data-v="corridor">corridor</button>
             <button class="seg-btn" data-v="pillars">pillars</button>
@@ -154,18 +147,12 @@
         <!-- Ansicht: eigener Baukasten vs. vorgefertigte 3D-Modelle -->
         <div class="ctrl">
           <div class="seg" id="ent-view">
-            <button class="seg-btn active" data-v="build">🛠 EIGENBAU</button>
-            <button class="seg-btn" data-v="3d">🗿 3D-MODELLE</button>
+            <button class="seg-btn active" data-v="build">EIGENBAU</button>
+            <button class="seg-btn" data-v="3d">3D-MODELLE</button>
           </div>
         </div>
 
         <div id="ent-build-controls">
-        <div class="prompt-row">
-          <label>PROMPT / WESEN</label>
-          <input type="text" id="ent-prompt" placeholder="z.B. tall watcher, many eyes, thin limbs" value="eyed blob creature">
-          <button class="apply-btn" id="ent-apply">→ INTERPRET</button>
-        </div>
-
         <div class="preset-row" id="ent-presets">
           <button class="chip active" data-preset="watcher">watcher</button>
           <button class="chip" data-preset="demon">demon</button>
@@ -178,11 +165,11 @@
 
         <div class="action-row">
           <button class="btn-ghost" id="ent-reset">✕ LEER</button>
-          <button class="btn-solid" id="ent-random">🎲 RANDOMIZE</button>
+          <button class="btn-solid" id="ent-random">RANDOMIZE</button>
         </div>
 
         <!-- BODY / GRUNDFORM (Basis — zuerst wählen) -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🧍 1 · BODY (Basis)</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">1 · BODY (Basis)</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Grundform</span></div>
           <select class="ent-sel" id="ent-body" data-key="body">
@@ -199,7 +186,7 @@
         </div>
 
         <!-- HEAD -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🧠 2 · HEAD</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">2 · HEAD</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Kopfform</span></div>
           <select class="ent-sel" id="ent-head" data-key="head">
@@ -212,7 +199,7 @@
         </div>
 
         <!-- EYES -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">👁️ 3 · EYES</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">3 · EYES</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Anzahl</span><em id="ent-eyes-v">0</em></div>
           <input type="range" id="ent-eyes" min="0" max="12" value="0">
@@ -234,7 +221,7 @@
         </div>
 
         <!-- FACE -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">💀 4 · FACE</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">4 · FACE</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Mund</span></div>
           <select class="ent-sel" id="ent-mouth" data-key="mouth">
@@ -252,7 +239,7 @@
         </div>
 
         <!-- TORSO -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🦴 5 · TORSO</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">5 · TORSO</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Körper</span></div>
           <select class="ent-sel" id="ent-torso" data-key="torso">
@@ -264,7 +251,7 @@
         </div>
 
         <!-- ARMS -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🦾 6 · ARMS</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">6 · ARMS</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Anzahl</span><em id="ent-arms-v">0</em></div>
           <input type="range" id="ent-arms" min="0" max="8" value="0">
@@ -283,7 +270,7 @@
         </div>
 
         <!-- LEGS -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🦵 7 · LEGS / MOVEMENT</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">7 · LEGS / MOVEMENT</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Beine</span></div>
           <select class="ent-sel" id="ent-legs" data-key="legs">
@@ -295,7 +282,7 @@
         </div>
 
         <!-- SKIN -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🧥 8 · SKIN</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">8 · SKIN</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Oberfläche</span></div>
           <select class="ent-sel" id="ent-skin" data-key="skin">
@@ -322,7 +309,7 @@
         </div>
 
         <!-- ACCESSORIES -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🎭 9 · ACCESSORIES</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">9 · ACCESSORIES</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Hörner</span></div>
           <select class="ent-sel" id="ent-horns" data-key="accHorns">
@@ -358,7 +345,7 @@
         </div>
 
         <!-- RENDER -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">🎞️ RENDER</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">RENDER</span></div>
         <div class="ctrl">
           <div class="seg" id="ent-render">
             <button class="seg-btn active" data-v="solid">solid</button>
@@ -367,7 +354,7 @@
           </div>
         </div>
 
-        <button class="btn-solid wide" id="ent-save-monster">💾 SAVE MONSTER → INS SPIEL</button>
+        <button class="btn-solid wide" id="ent-save-monster">SAVE MONSTER → INS SPIEL</button>
 
         <div class="action-row">
           <button class="btn-ghost" id="ent-regen">⟳ REGENERATE</button>
@@ -414,7 +401,7 @@
             <input type="range" id="e3-sat" min="0" max="100" value="0">
           </div>
 
-          <button class="btn-solid wide" id="ent3d-save-monster">💾 SAVE MONSTER → INS SPIEL</button>
+          <button class="btn-solid wide" id="ent3d-save-monster">SAVE MONSTER → INS SPIEL</button>
           <div class="ent-3d-hint">Ziehen = drehen · Scrollen = zoomen. Läuft nur über einen lokalen Server (nicht file://).</div>
         </div>
       </div>
@@ -434,11 +421,11 @@
     </aside>
   </main>
 
-  <script src="background.js?v=68"></script>
-  <script src="entity.js?v=68"></script>
-  <script src="audio.js?v=68"></script>
-  <script src="lightsout3d.js?v=68"></script>
-  <script type="module" src="entity3d.js?v=68"></script>
-  <script src="app.js?v=68"></script>
+  <script src="background.js?v=69"></script>
+  <script src="entity.js?v=69"></script>
+  <script src="audio.js?v=69"></script>
+  <script src="lightsout3d.js?v=69"></script>
+  <script type="module" src="entity3d.js?v=69"></script>
+  <script src="app.js?v=69"></script>
 </body>
 </html>

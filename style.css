@@ -480,8 +480,18 @@ input[type=range]::-moz-range-thumb{
 }
 
 /* ---- entity layered-system controls ---- */
-.ctrl-cat{margin-top:14px;border-top:1px solid var(--line-soft);padding-top:8px}
-.cat-tag{font-family:var(--ascii);font-size:12px;letter-spacing:1px;color:var(--gold-glow);text-transform:uppercase}
+.ctrl-cat{margin-top:22px;border-top:2px solid var(--gold-dim);padding-top:10px}
+.cat-tag{
+  font-family:var(--ascii);font-size:17px;font-weight:700;letter-spacing:2.5px;
+  color:var(--gold);text-transform:uppercase;
+  text-shadow:0 0 8px rgba(217,194,58,.25);
+}
+/* Save-Monster-Button: Bestätigung nach dem Speichern */
+.btn-solid.saved{
+  background-color:#2f9e5d;
+  background-image:linear-gradient(160deg,#48c47e,#2f9e5d);
+  color:#08170d;
+}
 .ent-sel{
   width:100%;background:var(--parchment);color:var(--ink);
   border:1px solid var(--line);border-radius:3px;padding:6px 8px;
