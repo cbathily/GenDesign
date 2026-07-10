@@ -259,7 +259,7 @@ function toggleExplore(){
     if(typeof monsterSpawn==='function') monsterSpawn();      // gespeichertes Monster ins Level setzen
     if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
     setStatus(BG.scene==='lightsout'
-      ? '▶ LIGHTS OUT — the full door code is written on ONE wall. Enter it at the EXIT. Shine your light at the thing in the dark.'
+      ? '▶ LIGHTS OUT — find 3 keys in the dark. Batteries keep your light alive. Shine it at the thing hunting you.'
       : (SAVED_MONSTER ? '▶ EXPLORE — dein Monster ist im Level …' : '▶ EXPLORE — find 3 keys, then the EXIT'));
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
   setWalkBtn();
@@ -270,8 +270,6 @@ function bindExploreKeys(){
   window.addEventListener('keydown',e=>{
     if(!EXPLORE.on) return;
     if(e.code==='Escape'){ exitExplore(); return; }
-    // Lights Out: door keypad / retry-on-death intercepts keys before movement
-    if(BG.scene==='lightsout' && typeof survKeypad==='function' && survKeypad(e.code)){ e.preventDefault(); return; }
     // Game Over (alle Szenen): R startet das Level neu
     if(WALK.dead && e.code==='KeyR'){ if(typeof restartWalk==='function') restartWalk(); e.preventDefault(); return; }
     EXPLORE.keys[e.code]=true;

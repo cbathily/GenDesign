@@ -107,7 +107,7 @@ function l3Build(){
 
   l3BuildCeilingPanels(sc);
   l3BuildProps(sc); l3BuildItems(sc); l3BuildGraffiti(sc);
-  l3BuildCodeMarks(sc); l3BuildStalker(sc);
+  l3BuildStalker(sc);
   // the horizontally-flipped projection (see l3Frame) reverses winding AND
   // corrupts Three's frustum test -> render double-sided + disable culling.
   sc.traverse(o=>{
@@ -175,6 +175,8 @@ function l3BuildItems(sc){
     let mesh=null;
     if(it.type==='almond'){
       mesh=l3AlmondBottle(); mesh.position.set(it.x,0,it.z);
+    } else if(it.type==='key'){
+      mesh=l3Key(); mesh.position.set(it.x,0.9,it.z);
     } else if(it.type==='battery'){
       const mat=new THREE.MeshStandardMaterial({color:0x3a9a5c,emissive:0x126a30,emissiveIntensity:0.9,roughness:0.5});
       mesh=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.36,0.18),mat); mesh.position.set(it.x,0.25,it.z);
@@ -266,31 +268,16 @@ function l3ExitTextTex(){
   x.fillText('EXIT', 256, 90);
   const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
 }
-// glowing amber code plate: shows the FULL 4-digit door code on one wall
-function l3CodeTex(code){
-  return l3CanvasTex(x=>{
-    x.clearRect(0,0,256,256);
-    x.translate(128,128); x.scale(-1,1); x.translate(-128,-128);   // pre-mirror for flipped projection
-    x.fillStyle='rgba(14,10,4,0.82)'; x.fillRect(20,48,216,160);
-    x.strokeStyle='rgba(255,196,86,0.95)'; x.lineWidth=5; x.strokeRect(20,48,216,160);
-    x.fillStyle='rgba(255,205,110,0.98)'; x.textAlign='center'; x.textBaseline='middle';
-    x.font='bold 30px monospace'; x.fillText('DOOR CODE', 128, 80);
-    x.font='bold 88px monospace'; x.fillText(code, 128, 152);
-  }, false);
-}
-function l3BuildCodeMarks(sc){
-  const CS=L3CFG.CS, off=CS/2+0.05, y=1.5;
-  for(const m of (WALK.codeMarks||[])){
-    const mat=new THREE.MeshStandardMaterial({map:l3CodeTex(m.code), emissive:0xffb347, emissiveIntensity:0.7,
-                                              transparent:true, roughness:1.0, side:THREE.DoubleSide, depthWrite:false});
-    const pl=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.4), mat);
-    const X=m.i*CS, Z=m.j*CS;
-    if(m.dir==='-x'){ pl.position.set(X-off,y,Z); pl.rotation.y=-Math.PI/2; }
-    else if(m.dir==='+x'){ pl.position.set(X+off,y,Z); pl.rotation.y=Math.PI/2; }
-    else if(m.dir==='-z'){ pl.position.set(X,y,Z-off); pl.rotation.y=Math.PI; }
-    else { pl.position.set(X,y,Z+off); pl.rotation.y=0; }
-    sc.add(pl);
-  }
+// goldener Schlüssel — schwebt und dreht sich, gut sichtbar im Dunkeln
+function l3Key(){
+  const g=new THREE.Group();
+  const gold=new THREE.MeshStandardMaterial({color:0xd9b24a, emissive:0xb9861f, emissiveIntensity:0.9, roughness:0.35, metalness:0.7});
+  const bow  =new THREE.Mesh(new THREE.TorusGeometry(0.09,0.028,10,20), gold); bow.position.y=0.16;
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.30,10), gold); shaft.position.y=-0.05;
+  const t1   =new THREE.Mesh(new THREE.BoxGeometry(0.10,0.03,0.03), gold); t1.position.set(0.05,-0.18,0);
+  const t2   =t1.clone(); t2.position.y=-0.10;
+  g.add(bow,shaft,t1,t2);
+  return g;
 }
 
 // glowing directional cones on the floor — a breadcrumb trail toward the exit
@@ -364,19 +351,24 @@ function l3Frame(p){
   if(L3.nearLight){ L3.nearLight.position.set(ex, ey, ez); L3.nearLight.intensity=L3.torchBase*(0.5+0.5*beam); }
   if(L3.fwdPool){   L3.fwdPool.position.set(ex+fwx*3.0, ey-0.6, ez+fwz*3.0); L3.fwdPool.intensity=L3.poolBase*beam; }
 
-  // items: hide collected, recolor exit when unlocked, bob+spin the almond bottles
+  // items: hide collected, recolor exit when unlocked, bob+spin the collectibles
   for(const o of L3.itemMeshes){
-    if(o.it.type==='almond'||o.it.type==='battery') o.mesh.visible=!o.it.taken;
+    if(o.it.type==='almond'||o.it.type==='battery'||o.it.type==='key') o.mesh.visible=!o.it.taken;
     if(o.it.type==='almond' && !o.it.taken){
       o.mesh.rotation.y += 0.012;
       o.mesh.position.y = Math.sin(frameCount*0.05 + o.it.x)*0.04;   // gentle float, like the lobby bob
     }
+    if(o.it.type==='key' && !o.it.taken){
+      o.mesh.rotation.y += 0.03;
+      o.mesh.position.y = 0.9 + Math.sin(frameCount*0.06 + o.it.x)*0.06;
+    }
   }
-  if(L3.exitSign){ const on=WALK.unlocked;
-    L3.exitSign.color.setHex(on?0x36e07a:0xd03c30); L3.exitSign.emissive.setHex(on?0x36e07a:0xd03c30); }
-  if(L3.keypadMat){ const on=WALK.unlocked;
-    L3.keypadMat.emissive.setHex(on?0x33cc66:0xffcc33);
-    L3.keypadMat.emissiveIntensity = WALK.atDoor && !on ? (0.7+0.5*Math.sin(frameCount*0.25)) : 0.6; }
+  const doorOpen = WALK.collected>=WALK.need;    // Schlüssel öffnen die Tür
+  if(L3.exitSign){
+    L3.exitSign.color.setHex(doorOpen?0x36e07a:0xd03c30); L3.exitSign.emissive.setHex(doorOpen?0x36e07a:0xd03c30); }
+  if(L3.keypadMat){
+    L3.keypadMat.emissive.setHex(doorOpen?0x33cc66:0xffcc33);
+    L3.keypadMat.emissiveIntensity = 0.6; }
 
   // the stalker: move toward its world pos, face the player, flare eyes when hunting
   if(L3.stalker){
