@@ -12,8 +12,8 @@ let mx=0,my=0;         // cursor in canvas space
 // ---------- p5 sketch ----------
 function setup(){
   const host=document.getElementById('canvas-host');
-  const cw = Math.min(900, host.clientWidth-2);
-  const ch = Math.min(620, host.clientHeight-2);
+  const cw = Math.min(1400, host.clientWidth-2);
+  const ch = Math.min(900, host.clientHeight-2);
   const c=createCanvas(cw,ch);
   c.parent('canvas-host');
   pgCanvas=c;
@@ -26,7 +26,7 @@ function setup(){
 
 function windowResized(){
   const host=document.getElementById('canvas-host');
-  resizeCanvas(Math.min(900,host.clientWidth-2), Math.min(620,host.clientHeight-2));
+  resizeCanvas(Math.min(1400,host.clientWidth-2), Math.min(900,host.clientHeight-2));
   ENT_cache=null;
 }
 
@@ -255,7 +255,9 @@ function toggleExplore(){
     FLASH.batt=1.0;
     generateWalkWorld();
     if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
-    setStatus('▶ EXPLORE — find 3 Almond Water, then the EXIT');
+    setStatus(BG.scene==='lightsout'
+      ? '▶ LIGHTS OUT — find the 4-digit code on the walls, enter it at the EXIT door. Shine your light at the thing in the dark.'
+      : '▶ EXPLORE — find 3 Almond Water, then the EXIT');
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
   setWalkBtn();
 }
@@ -265,6 +267,8 @@ function bindExploreKeys(){
   window.addEventListener('keydown',e=>{
     if(!EXPLORE.on) return;
     if(e.code==='Escape'){ exitExplore(); return; }
+    // Lights Out: door keypad / retry-on-death intercepts keys before movement
+    if(BG.scene==='lightsout' && typeof survKeypad==='function' && survKeypad(e.code)){ e.preventDefault(); return; }
     EXPLORE.keys[e.code]=true;
     if(nav.includes(e.code)) e.preventDefault();
   });
