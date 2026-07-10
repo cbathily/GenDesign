@@ -307,20 +307,34 @@ function l3BuildPath(sc){
   }
 }
 
-// the stalker — a gaunt near-black figure with glowing eyes. Built once; moved each frame.
+// the stalker — a pale, gaunt, hunched "bacteria"-style creature: elongated torso,
+// very long dangling arms, lowered head with faint glowing eyes. Built once, moved each frame.
 function l3BuildStalker(sc){
   L3.stalker=null;
   const g=new THREE.Group();
-  const skin=new THREE.MeshStandardMaterial({color:0x070709, roughness:1.0, emissive:0x050505, emissiveIntensity:0.3});
-  const legs =new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.22,1.05,10), skin); legs.position.y=0.55;
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.18,0.85,10), skin); torso.position.y=1.45;
-  const head =new THREE.Mesh(new THREE.SphereGeometry(0.18,12,12), skin); head.position.y=2.02;
-  const armL =new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.9,8), skin); armL.position.set(-0.2,1.5,0); armL.rotation.z=0.15;
-  const armR =new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.9,8), skin); armR.position.set( 0.2,1.5,0); armR.rotation.z=-0.15;
-  const eyeMat=new THREE.MeshStandardMaterial({color:0xfff2c0, emissive:0xffd24a, emissiveIntensity:1.4});
-  const eyeL=new THREE.Mesh(new THREE.SphereGeometry(0.035,8,8), eyeMat); eyeL.position.set(-0.07,2.04,0.16);
-  const eyeR=new THREE.Mesh(new THREE.SphereGeometry(0.035,8,8), eyeMat); eyeR.position.set( 0.07,2.04,0.16);
-  g.add(legs,torso,head,armL,armR,eyeL,eyeR);
+  const skin=new THREE.MeshStandardMaterial({color:0xcfc8ba, roughness:1.0, emissive:0x16140f, emissiveIntensity:0.4});
+  const dark=new THREE.MeshStandardMaterial({color:0x241f19, roughness:0.9});
+  // long thin legs
+  const legL=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.05,1.05,8), skin); legL.position.set(-0.12,0.52,0); legL.rotation.z=0.05;
+  const legR=legL.clone(); legR.position.x=0.12; legR.rotation.z=-0.05;
+  // elongated, slightly hunched torso + ribcage rings
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.14,0.95,10), skin); torso.position.set(0,1.45,0.04); torso.rotation.x=-0.12;
+  for(const ry of [1.25,1.45,1.63]){ const r=new THREE.Mesh(new THREE.TorusGeometry(0.115,0.012,6,16), skin); r.rotation.x=Math.PI/2; r.position.set(0,ry,0.04); g.add(r); }
+  // craned neck + small lowered head
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,0.2,8), skin); neck.position.set(0,1.95,0.07); neck.rotation.x=0.45;
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.14,14,12), skin); head.position.set(0,2.04,0.18); head.scale.set(0.9,1.15,1.0);
+  // very long dangling arms reaching toward the floor
+  const armL=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.035,1.25,8), skin); armL.position.set(-0.18,1.18,0.06); armL.rotation.z=0.12;
+  const armR=armL.clone(); armR.position.x=0.18; armR.rotation.z=-0.12;
+  const handL=new THREE.Mesh(new THREE.ConeGeometry(0.05,0.2,6), skin); handL.position.set(-0.215,0.56,0.06); handL.rotation.x=Math.PI;
+  const handR=handL.clone(); handR.position.x=0.215;
+  // hollow sockets + faint glowing eyes
+  const sockL=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,8), dark); sockL.position.set(-0.05,2.05,0.23);
+  const sockR=sockL.clone(); sockR.position.x=0.05;
+  const eyeMat=new THREE.MeshStandardMaterial({color:0xff5a4a, emissive:0xff1810, emissiveIntensity:1.6});
+  const eyeL=new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), eyeMat); eyeL.position.set(-0.05,2.05,0.28);
+  const eyeR=eyeL.clone(); eyeR.position.x=0.05;
+  g.add(legL,legR,torso,neck,head,armL,armR,handL,handR,sockL,sockR,eyeL,eyeR);
   g.visible=false; sc.add(g);
   L3.stalker={ grp:g, eyeMat };
 }
@@ -417,23 +431,12 @@ function l3TorchMask(p){
   g.restore();
 }
 
-// VHS / found-footage overlay (PLAY, timestamp, date)
+// VHS / found-footage overlay (REC blinker only — PLAY + timestamp removed)
 function l3FoundFootage(p){
-  const W=p.width,H=p.height;
-  p.push(); p.textFont('monospace');
-  // scanline tint
-  p.noStroke();
-  // PLAY + REC
-  p.fill(235,235,228); p.textSize(13); p.textAlign(LEFT,TOP);
-  p.text('▶ PLAY', 18, 14);
+  const W=p.width;
+  p.push(); p.textFont('monospace'); p.noStroke();
   const blink=(Math.floor(frameCount/18)%2)===0;
   if(blink){ p.fill(210,40,36); p.ellipse(W-150,22,9,9); p.fill(220,210,205); p.textSize(11); p.textAlign(LEFT,CENTER); p.text('REC', W-140,22); }
-  // timestamp bottom-left
-  const tot=Math.floor(frameCount/30), mm=String(Math.floor(tot/60)%60).padStart(2,'0'), ss=String(tot%60).padStart(2,'0');
-  p.fill(225,225,218); p.textSize(13); p.textAlign(LEFT,BOTTOM);
-  p.text('PM 00:'+mm+':'+ss, 18, H-30);
-  p.fill(180,178,170); p.textSize(11);
-  p.text('MAR.07 1975', 18, H-14);
   p.pop();
 }
 

@@ -12,8 +12,8 @@ let mx=0,my=0;         // cursor in canvas space
 // ---------- p5 sketch ----------
 function setup(){
   const host=document.getElementById('canvas-host');
-  const cw = Math.min(900, host.clientWidth-2);
-  const ch = Math.min(620, host.clientHeight-2);
+  const cw = Math.min(1400, host.clientWidth-2);
+  const ch = Math.min(900, host.clientHeight-2);
   const c=createCanvas(cw,ch);
   c.parent('canvas-host');
   pgCanvas=c;
@@ -26,7 +26,7 @@ function setup(){
 
 function windowResized(){
   const host=document.getElementById('canvas-host');
-  resizeCanvas(Math.min(900,host.clientWidth-2), Math.min(620,host.clientHeight-2));
+  resizeCanvas(Math.min(1400,host.clientWidth-2), Math.min(900,host.clientHeight-2));
   ENT_cache=null;
 }
 
