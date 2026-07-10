@@ -40,7 +40,7 @@ function draw(){
     }
     else drawBackground(this,t);
   } else if(activeTab==='entity'){
-    if(ENT_VIEW!=='3d') drawEntity(this, mx, my);   // im 3D-Modus rendert entity3d.js sein eigenes Overlay-Canvas
+    if(ENT_VIEW!=='3d') drawEntity(this, mx, my);   // in 3D mode entity3d.js renders its own overlay canvas
   } else {
     drawAudioViz(this,t);
   }
@@ -48,7 +48,7 @@ function draw(){
 
 function mouseMoved(){ mx=mouseX; my=mouseY; }
 
-// Klick auf den Canvas startet das Spiel, wenn der HOW-TO-PLAY-Screen offen ist
+// Click on canvas starts the game when the HOW-TO-PLAY screen is open
 function mousePressed(){
   if(EXPLORE.on && typeof WALK!=='undefined' && WALK.briefing &&
      mouseX>=0 && mouseX<=width && mouseY>=0 && mouseY<=height){
@@ -129,6 +129,7 @@ function $all(s){return document.querySelectorAll(s);}
 
 window.addEventListener('DOMContentLoaded',()=>{
   bootSequence();
+  bindInfoButton();
   bindTabs();
   bindBackground();
   bindEntity();
@@ -145,6 +146,29 @@ function bootSequence(){
   });
 }
 
+// ---------- info button & modal ----------
+function bindInfoButton(){
+  const modal = $('#info-modal');
+  const btn = $('#bg-info-btn');
+  const closeBtn = $('.info-close');
+  
+  if(!btn || !modal) return;
+  
+  btn.addEventListener('click',()=>{
+    modal.classList.add('show');
+  });
+  
+  closeBtn.addEventListener('click',()=>{
+    modal.classList.remove('show');
+  });
+  
+  modal.addEventListener('click',(e)=>{
+    if(e.target === modal){
+      modal.classList.remove('show');
+    }
+  });
+}
+
 // ---------- tabs ----------
 function bindTabs(){
   $all('.tab').forEach(tab=>{
@@ -156,7 +180,7 @@ function bindTabs(){
       $(`.panel-page[data-panel="${activeTab}"]`).classList.add('active');
       const labels={background:'SIGNAL // BACKGROUND',entity:'SIGNAL // ENTITY',audio:'SIGNAL // AUDIO'};
       $('#stage-label').textContent=labels[activeTab];
-      syncEnt3DCanvas();   // 3D-Overlay nur im Entity-Tab (und nur im 3D-Modus) zeigen
+      syncEnt3DCanvas();   // 3D overlay only in Entity tab (and only in 3D mode) show
       setStatus(activeTab+' module loaded.');
     });
   });
@@ -343,7 +367,7 @@ function bindEntity(){
   bindChips('ent-presets',name=>{ entApplyPreset(name); syncEntUI(); setStatus('preset: '+name); });
 
   $('#ent-reset').addEventListener('click',()=>{
-    entReset(); syncEntUI(); setStatus('entity geleert — bau sie neu auf.');
+    entReset(); syncEntUI(); setStatus('entity cleared — build it up again.');
   });
   $('#ent-random').addEventListener('click',()=>{
     entRandomize(); syncEntUI(); setSeed(ENT.seed); setStatus('randomized entity.');
@@ -357,7 +381,7 @@ function bindEntity(){
   syncEntUI();   // align controls with ENT defaults on load
 }
 
-// Button-Feedback: zeigt kurz "✓ GESPEICHERT", damit klar ist, dass es geklappt hat
+// Button feedback: briefly shows "✓ SAVED" to make it clear it worked
 function flashSavedBtn(sel){
   const b=$(sel); if(!b) return;
   if(b._savedTimer) clearTimeout(b._savedTimer);
@@ -394,7 +418,7 @@ function saveMonster(){
 
 // ============================================================
 //  ENTITY 3D — vorgefertigte GLB-Modelle (entity3d.js, Katharina)
-//  Umschalter EIGENBAU / 3D-MODELLE im Entity-Tab.
+// Toggle CUSTOM BUILD / 3D MODELS in Entity tab.
 // ============================================================
 let ENT_VIEW = 'build';        // 'build' = eigener Baukasten, '3d' = GLB-Viewer
 let ENT3D_MODEL = 'bacteria';  // aktuell gewähltes Modell
@@ -425,12 +449,12 @@ function setEntView(v){
     if(window.init3D){
       window.init3D(c3);                 // einmalig — init3D ignoriert weitere Aufrufe
       window.setModel3D(ENT3D_MODEL);
-      setStatus('3D-Modell-Viewer — ziehen zum Drehen.');
+      setStatus('3D model viewer — drag to rotate.');
     } else {
       setStatus('3D-Modul lädt noch … gleich nochmal klicken.');
     }
   } else {
-    setStatus('Eigenbau-Modus — bau deine Entity.');
+    setStatus('Custom build mode — build your entity.');
   }
 }
 
@@ -463,7 +487,7 @@ function bindEntity3D(){
 }
 
 // 3D-Modell als transparenten Sprite rendern und als Spiel-Monster
-// registrieren (gleiches SAVED_MONSTER-System wie der Eigenbau).
+// Register (same SAVED_MONSTER system as custom build).
 function save3DMonster(){
   if(!window.getModelSpriteCanvas){ setStatus('3D-Modul lädt noch …'); return; }
   const src=window.getModelSpriteCanvas(ENT3D_MODEL);

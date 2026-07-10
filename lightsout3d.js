@@ -1,7 +1,7 @@
 /* ============================================================
    LEVEL 6 — LIGHTS OUT in Three.js (WebGL)
    Texturierter Beton, SpotLight-Taschenlampe mit Schatten,
-   Tiefen-Nebel, 3D-Props. Wird in einen Offscreen-WebGL-Buffer
+   Depth fog, 3D props. Is rendered into an offscreen WebGL buffer
    gerendert und über das p5-Canvas geblittet (HUD/Grain bleiben p5).
    Reuse aus background.js: EXPLORE, FLASH, WALK, lightsoutWall(),
    updateWalkWorld(). Bei Fehler: false -> 2D-Fallback.

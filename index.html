@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +12,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Modul-Three.js für entity3d.js (GLB-Viewer) — separat vom globalen r128 für lightsout3d.js -->
+  <!-- Module Three.js for entity3d.js (GLB-Viewer) — separate from global r128 for lightsout3d.js -->
   <script type="importmap">
   {
     "imports": {
@@ -32,7 +32,7 @@
   █▄▄▄█     █▄▄▄█
       </pre>
       <div class="boot-title">LIMINAL</div>
-      <div class="boot-sub">dreamcore asset generator</div>
+      <div class="boot-sub">backrooms asset generator</div>
       <button id="boot-enter">[ ENTER ]</button>
     </div>
   </div>
@@ -54,7 +54,7 @@
     <section class="stage">
       <div class="stage-frame">
         <div id="canvas-host">
-          <!-- Overlay-Canvas für den 3D-Modell-Viewer (entity3d.js) -->
+          <!-- Overlay-Canvas for 3D model viewer (entity3d.js) -->
           <canvas id="ent3d-canvas"></canvas>
         </div>
         <div class="stage-overlay">
@@ -75,11 +75,14 @@
       <div class="panel-page active" data-panel="background">
         <div class="panel-head">
           <h2>Background</h2>
-          <p>Liminale Räume. Endlose Korridore. Verlassene Zwischenwelten.</p>
+          <button id="bg-info-btn" class="info-btn" title="How to use LIMINAL">
+            <span class="info-icon">ⓘ</span>
+          </button>
+          <p>Liminal spaces. Endless corridors. Abandoned in-between worlds.</p>
         </div>
 
         <div class="ctrl">
-          <div class="ctrl-label level-head"><span>▚ LEVEL SELECT · SPIELBAR</span><em>3 LEVELS</em></div>
+          <div class="ctrl-label level-head"><span>▚ LEVEL SELECT · PLAYABLE</span><em>3 LEVELS</em></div>
           <div class="level-grid" id="bg-scenes">
             <button class="chip lvl-card active" data-preset="lobby"><span class="lvl-num">0</span><span class="lvl-name">The Lobby</span></button>
             <button class="chip lvl-card" data-preset="habitable"><span class="lvl-num">1</span><span class="lvl-name">Habitable Zone</span></button>
@@ -88,7 +91,7 @@
         </div>
 
         <div class="ctrl">
-          <div class="ctrl-label level-head"><span>▚ ALLE BACKGROUNDS</span><em id="bg-scene-count">13 SECTORS</em></div>
+          <div class="ctrl-label level-head"><span>▚ ALL BACKGROUNDS</span><em id="bg-scene-count">13 SECTORS</em></div>
           <div class="level-grid" id="bg-scenes-all">
             <button class="chip lvl-card" data-preset="lobby"><span class="lvl-num">0</span><span class="lvl-name">The Lobby</span></button>
             <button class="chip lvl-card" data-preset="habitable"><span class="lvl-num">1</span><span class="lvl-name">Habitable Zone</span></button>
@@ -111,7 +114,7 @@
           <input type="range" id="bg-hue" min="0" max="360" value="50">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Depth / Korridortiefe</span><em id="bg-depth-v">7</em></div>
+          <div class="ctrl-label"><span>Depth / Corridor Depth</span><em id="bg-depth-v">7</em></div>
           <input type="range" id="bg-depth" min="2" max="14" value="7">
         </div>
         <div class="ctrl">
@@ -127,7 +130,7 @@
           <input type="range" id="bg-fog" min="0" max="100" value="30">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Raumstruktur</span></div>
+          <div class="ctrl-label"><span>Room Structure</span></div>
           <div class="seg" id="bg-geo">
             <button class="seg-btn active" data-v="corridor">corridor</button>
             <button class="seg-btn" data-v="pillars">pillars</button>
@@ -149,14 +152,14 @@
       <div class="panel-page" data-panel="entity">
         <div class="panel-head">
           <h2>Entities</h2>
-          <p>Spielfiguren & Monster. Augen die zurückstarren.</p>
+          <p>Player characters & monsters. Eyes that stare back.</p>
         </div>
 
-        <!-- Ansicht: eigener Baukasten vs. vorgefertigte 3D-Modelle -->
+        <!-- View: custom builder vs. prefab 3D models -->
         <div class="ctrl">
           <div class="seg" id="ent-view">
-            <button class="seg-btn active" data-v="build">EIGENBAU</button>
-            <button class="seg-btn" data-v="3d">3D-MODELLE</button>
+            <button class="seg-btn active" data-v="build">CUSTOM BUILD</button>
+            <button class="seg-btn" data-v="3d">3D MODELS</button>
           </div>
         </div>
 
@@ -172,34 +175,34 @@
         </div>
 
         <div class="action-row">
-          <button class="btn-ghost" id="ent-reset">✕ LEER</button>
+          <button class="btn-ghost" id="ent-reset">✕ CLEAR</button>
           <button class="btn-solid" id="ent-random">RANDOMIZE</button>
         </div>
 
-        <!-- BODY / GRUNDFORM (Basis — zuerst wählen) -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">1 · BODY (Basis)</span></div>
+        <!-- BODY / BASE SHAPE (Base — choose first) -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">1 · BODY (Base)</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Grundform</span></div>
+          <div class="ctrl-label"><span>Base Shape</span></div>
           <select class="ent-sel" id="ent-body" data-key="body">
-            <option value="none">— keins —</option>
+            <option value="none">— none —</option>
             <option value="humanoid">Humanoid</option><option value="quadruped">Quadruped</option>
             <option value="insectoid">Insectoid</option><option value="serpentine">Serpentine</option>
-            <option value="blob">Blob / Amorph</option><option value="floating">Floating / Geist</option>
+            <option value="blob">Blob / Amorphous</option><option value="floating">Floating / Ghost</option>
             <option value="mechanical">Mechanical Frame</option>
           </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Größe</span><em id="ent-size-v">0.55</em></div>
+          <div class="ctrl-label"><span>Size</span><em id="ent-size-v">0.55</em></div>
           <input type="range" id="ent-size" min="10" max="100" value="55">
         </div>
 
         <!-- HEAD -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">2 · HEAD</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Kopfform</span></div>
+          <div class="ctrl-label"><span>Head Shape</span></div>
           <select class="ent-sel" id="ent-head" data-key="head">
-            <option value="none">— keins —</option>
-            <option value="human">Menschlich</option><option value="skull">Schädel</option>
+            <option value="none">— none —</option>
+            <option value="human">Human</option><option value="skull">Skull</option>
             <option value="wolf">Wolf</option><option value="bird">Vogel</option><option value="lizard">Eidechse</option>
             <option value="hydra">Hydra (mehrere)</option><option value="eyeless">Augenlos / glatt</option>
             <option value="monitor">TV / Monitor</option><option value="mask">Maske</option><option value="crystal">Kristall</option>
@@ -209,15 +212,15 @@
         <!-- EYES -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">3 · EYES</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Anzahl</span><em id="ent-eyes-v">0</em></div>
+          <div class="ctrl-label"><span>Count</span><em id="ent-eyes-v">0</em></div>
           <input type="range" id="ent-eyes" min="0" max="12" value="0">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Augen-Typ</span></div>
+          <div class="ctrl-label"><span>Eye Type</span></div>
           <select class="ent-sel" id="ent-eyetype" data-key="eyeType">
             <option value="normal">Normal</option><option value="glowing">Glowing</option>
-            <option value="compound">Compound (Insekt)</option><option value="lens">Kamera-Linse</option>
-            <option value="hollow">Leere Höhlen</option><option value="cosmos">Kosmos</option>
+            <option value="compound">Compound (Insect)</option><option value="lens">Camera Lens</option>
+            <option value="hollow">Empty Sockets</option><option value="cosmos">Cosmos</option>
           </select>
         </div>
         <div class="ctrl">
@@ -231,125 +234,125 @@
         <!-- FACE -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">4 · FACE</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Mund</span></div>
+          <div class="ctrl-label"><span>Mouth</span></div>
           <select class="ent-sel" id="ent-mouth" data-key="mouth">
-            <option value="none">Kein Mund</option>
-            <option value="normal">Normal</option><option value="maw">Reißmaul</option>
-            <option value="beak">Schnabel</option><option value="many">Mehrere</option>
+            <option value="none">No Mouth</option>
+            <option value="normal">Normal</option><option value="maw">Maw</option>
+            <option value="beak">Beak</option><option value="many">Multiple</option>
           </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Ausdruck</span></div>
+          <div class="ctrl-label"><span>Expression</span></div>
           <select class="ent-sel" id="ent-expr" data-key="expr">
-            <option value="neutral">Neutral</option><option value="angry">Wütend</option>
-            <option value="sad">Traurig</option><option value="glitch">Glitch</option><option value="berserk">Berserk</option>
+            <option value="neutral">Neutral</option><option value="angry">Angry</option>
+            <option value="sad">Sad</option><option value="glitch">Glitch</option><option value="berserk">Berserk</option>
           </select>
         </div>
 
         <!-- TORSO -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">5 · TORSO</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Körper</span></div>
+          <div class="ctrl-label"><span>Body</span></div>
           <select class="ent-sel" id="ent-torso" data-key="torso">
-            <option value="none">— keins —</option>
-            <option value="humanoid">Humanoid</option><option value="armored">Gepanzert</option>
-            <option value="organic">Organisch</option><option value="crystalline">Kristallin</option>
-            <option value="scaly">Schuppig</option><option value="mechanical">Mechanisch</option><option value="hollow">Hohl</option>
+            <option value="none">— none —</option>
+            <option value="humanoid">Humanoid</option><option value="armored">Armored</option>
+            <option value="organic">Organic</option><option value="crystalline">Crystalline</option>
+            <option value="scaly">Scaly</option><option value="mechanical">Mechanical</option><option value="hollow">Hollow</option>
           </select>
         </div>
 
         <!-- ARMS -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">6 · ARMS</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Anzahl</span><em id="ent-arms-v">0</em></div>
+          <div class="ctrl-label"><span>Count</span><em id="ent-arms-v">0</em></div>
           <input type="range" id="ent-arms" min="0" max="8" value="0">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Arm-Typ</span></div>
+          <div class="ctrl-label"><span>Arm Type</span></div>
           <select class="ent-sel" id="ent-armtype" data-key="armType">
-            <option value="human">Menschlich</option><option value="tentacle">Tentakel</option>
-            <option value="claws">Klauen</option><option value="blades">Klingen</option>
-            <option value="stone">Steinarm</option><option value="mech">Greifarm</option>
+            <option value="human">Human</option><option value="tentacle">Tentacle</option>
+            <option value="claws">Claws</option><option value="blades">Blades</option>
+            <option value="stone">Stone Arm</option><option value="mech">Gripper Arm</option>
           </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Symmetrie</span></div>
-          <label class="ent-toggle"><input type="checkbox" id="ent-symmetry" data-key="armSym" checked> symmetrisch</label>
+          <div class="ctrl-label"><span>Symmetry</span></div>
+          <label class="ent-toggle"><input type="checkbox" id="ent-symmetry" data-key="armSym" checked> symmetric</label>
         </div>
 
         <!-- LEGS -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">7 · LEGS / MOVEMENT</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Beine</span></div>
+          <div class="ctrl-label"><span>Legs</span></div>
           <select class="ent-sel" id="ent-legs" data-key="legs">
-            <option value="none">Keine (schwebend)</option><option value="two">2 Beine</option>
-            <option value="four">4 Beine</option><option value="many">Viele (Spider)</option>
-            <option value="wheels">Räder</option><option value="hover">Hover</option>
-            <option value="slime">Slime</option><option value="jump">Sprungbeine</option>
+            <option value="none">None (floating)</option><option value="two">2 Legs</option>
+            <option value="four">4 Legs</option><option value="many">Many (Spider)</option>
+            <option value="wheels">Wheels</option><option value="hover">Hover</option>
+            <option value="slime">Slime</option><option value="jump">Jump Legs</option>
           </select>
         </div>
 
         <!-- SKIN -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">8 · SKIN</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Oberfläche</span></div>
+          <div class="ctrl-label"><span>Surface</span></div>
           <select class="ent-sel" id="ent-skin" data-key="skin">
-            <option value="flesh">Fleisch</option><option value="fur">Fell</option>
-            <option value="scales">Schuppen</option><option value="metal">Metall</option>
-            <option value="stone">Stein</option><option value="energy">Energie / Plasma</option><option value="crystal">Kristall</option>
+            <option value="flesh">Flesh</option><option value="fur">Fur</option>
+            <option value="scales">Scales</option><option value="metal">Metal</option>
+            <option value="stone">Stone</option><option value="energy">Energy / Plasma</option><option value="crystal">Crystal</option>
           </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Muster</span></div>
+          <div class="ctrl-label"><span>Pattern</span></div>
           <select class="ent-sel" id="ent-pattern" data-key="pattern">
-            <option value="none">Keins</option><option value="stripes">Streifen</option>
-            <option value="runes">Runen</option><option value="biolum">Biolumineszenz</option>
-            <option value="scars">Narben</option><option value="cracks">Risse / Glitch</option>
+            <option value="none">None</option><option value="stripes">Stripes</option>
+            <option value="runes">Runes</option><option value="biolum">Bioluminescence</option>
+            <option value="scars">Scars</option><option value="cracks">Cracks / Glitch</option>
           </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Farbton</span><em id="ent-hue-v">210</em></div>
+          <div class="ctrl-label"><span>Hue</span><em id="ent-hue-v">210</em></div>
           <input type="range" id="ent-hue" min="0" max="360" value="210">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Helligkeit</span><em id="ent-light-v">45</em></div>
+          <div class="ctrl-label"><span>Brightness</span><em id="ent-light-v">45</em></div>
           <input type="range" id="ent-light" min="2" max="90" value="45">
         </div>
 
         <!-- ACCESSORIES -->
         <div class="ctrl ctrl-cat"><span class="cat-tag">9 · ACCESSORIES</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Hörner</span></div>
+          <div class="ctrl-label"><span>Horns</span></div>
           <select class="ent-sel" id="ent-horns" data-key="accHorns">
-            <option value="none">Keine</option><option value="curved">Gebogen</option>
-            <option value="straight">Gerade</option><option value="ram">Widder</option><option value="antler">Geweih</option>
+            <option value="none">None</option><option value="curved">Curved</option>
+            <option value="straight">Straight</option><option value="ram">Ram</option><option value="antler">Antlers</option>
           </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Flügel</span></div>
+          <div class="ctrl-label"><span>Wings</span></div>
           <select class="ent-sel" id="ent-wings" data-key="accWings">
-            <option value="none">Keine</option><option value="angel">Engel</option>
-            <option value="demon">Dämon</option><option value="insect">Insekt</option>
+            <option value="none">None</option><option value="angel">Angel</option>
+            <option value="demon">Demon</option><option value="insect">Insect</option>
           </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Schwanz</span></div>
+          <div class="ctrl-label"><span>Tail</span></div>
           <select class="ent-sel" id="ent-tail" data-key="accTail">
-            <option value="none">Keiner</option><option value="lizard">Echse</option>
-            <option value="devil">Teufel</option><option value="fish">Fisch</option><option value="tentacle">Tentakel</option>
+            <option value="none">None</option><option value="lizard">Lizard</option>
+            <option value="devil">Devil</option><option value="fish">Fish</option><option value="tentacle">Tentacle</option>
           </select>
         </div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Aura</span></div>
           <select class="ent-sel" id="ent-aura" data-key="accAura">
-            <option value="none">Keine</option><option value="flames">Flammen</option>
-            <option value="glow">Glow</option><option value="smoke">Rauch</option>
+            <option value="none">None</option><option value="flames">Flames</option>
+            <option value="glow">Glow</option><option value="smoke">Smoke</option>
           </select>
         </div>
         <div class="ctrl">
-          <label class="ent-toggle"><input type="checkbox" id="ent-spikes" data-key="accSpikes"> Rückenstacheln</label>
-          <label class="ent-toggle"><input type="checkbox" id="ent-parasites" data-key="accParasites"> Parasiten</label>
-          <label class="ent-toggle"><input type="checkbox" id="ent-chains" data-key="accChains"> Ketten</label>
+          <label class="ent-toggle"><input type="checkbox" id="ent-spikes" data-key="accSpikes"> Dorsal Spines</label>
+          <label class="ent-toggle"><input type="checkbox" id="ent-parasites" data-key="accParasites"> Parasites</label>
+          <label class="ent-toggle"><input type="checkbox" id="ent-chains" data-key="accChains"> Chains</label>
         </div>
 
         <!-- RENDER -->
@@ -362,7 +365,7 @@
           </div>
         </div>
 
-        <button class="btn-solid wide" id="ent-save-monster">SAVE MONSTER → INS SPIEL</button>
+        <button class="btn-solid wide" id="ent-save-monster">SAVE MONSTER → INTO GAME</button>
 
         <div class="action-row">
           <button class="btn-ghost" id="ent-regen">⟳ REGENERATE</button>
@@ -370,7 +373,7 @@
         </div>
         </div><!-- /ent-build-controls -->
 
-        <!-- 3D-MODELLE (vorgefertigte GLBs, entity3d.js) -->
+        <!-- 3D MODELS (prefab GLBs, entity3d.js) -->
         <div id="ent-3d-controls" style="display:none">
           <div class="preset-row" id="ent3d-models">
             <button class="chip active" data-model="bacteria">bacteria</button>
@@ -379,38 +382,38 @@
           </div>
           <div class="ent-3d-hint" id="ent-3d-label">BACTERIA — KANE PIXELS</div>
 
-          <div class="ctrl-sep"><span>Modell anpassen</span></div>
+          <div class="ctrl-sep"><span>Adjust Model</span></div>
           <div class="ctrl">
-            <div class="ctrl-label"><span>Höhe</span><em id="e3-height-v">100</em></div>
+            <div class="ctrl-label"><span>Height</span><em id="e3-height-v">100</em></div>
             <input type="range" id="e3-height" min="50" max="200" value="100">
           </div>
           <div class="ctrl">
-            <div class="ctrl-label"><span>Breite</span><em id="e3-width-v">100</em></div>
+            <div class="ctrl-label"><span>Width</span><em id="e3-width-v">100</em></div>
             <input type="range" id="e3-width" min="50" max="200" value="100">
           </div>
           <div class="ctrl">
-            <div class="ctrl-label"><span>Extra-Arme</span><em id="e3-arms-v">0</em></div>
+            <div class="ctrl-label"><span>Extra Arms</span><em id="e3-arms-v">0</em></div>
             <input type="range" id="e3-arms" min="0" max="6" value="0">
           </div>
           <div class="ctrl">
-            <div class="ctrl-label"><span>Extra-Beine</span><em id="e3-legs-v">0</em></div>
+            <div class="ctrl-label"><span>Extra Legs</span><em id="e3-legs-v">0</em></div>
             <input type="range" id="e3-legs" min="0" max="6" value="0">
           </div>
           <div class="ctrl">
-            <div class="ctrl-label"><span>Augen</span><em id="e3-eyes-v">0</em></div>
+            <div class="ctrl-label"><span>Eyes</span><em id="e3-eyes-v">0</em></div>
             <input type="range" id="e3-eyes" min="0" max="12" value="0">
           </div>
           <div class="ctrl">
-            <div class="ctrl-label"><span>Farbton</span><em id="e3-hue-v">0</em></div>
+            <div class="ctrl-label"><span>Hue</span><em id="e3-hue-v">0</em></div>
             <input type="range" id="e3-hue" min="0" max="360" value="0">
           </div>
           <div class="ctrl">
-            <div class="ctrl-label"><span>Farb-Intensität</span><em id="e3-sat-v">0</em></div>
+            <div class="ctrl-label"><span>Color Intensity</span><em id="e3-sat-v">0</em></div>
             <input type="range" id="e3-sat" min="0" max="100" value="0">
           </div>
 
-          <button class="btn-solid wide" id="ent3d-save-monster">SAVE MONSTER → INS SPIEL</button>
-          <div class="ent-3d-hint">Ziehen = drehen · Scrollen = zoomen. Läuft nur über einen lokalen Server (nicht file://).</div>
+          <button class="btn-solid wide" id="ent3d-save-monster">SAVE MONSTER → INTO GAME</button>
+          <div class="ent-3d-hint">Drag = rotate · Scroll = zoom. Only works over a local server (not file://).</div>
         </div>
       </div>
 
@@ -428,6 +431,27 @@
       </div>
     </aside>
   </main>
+
+  <!-- Info Modal -->
+  <div id="info-modal" class="info-modal">
+    <div class="info-modal-content">
+      <button class="info-close">✕</button>
+      <h2>How to Use LIMINAL</h2>
+      <div class="info-text">
+        <p><strong>Enter the Game</strong><br>
+        You can enter any level directly from the Background tab without creating an entity. Just customize a background and click "ENTER LEVEL · WALK" to explore.</p>
+        
+        <p><strong>Add Entities</strong><br>
+        Go to the Entities tab to design your own custom creature or select from preset 3D models. Click "SAVE MONSTER → INTO GAME" to add it to the current level.</p>
+        
+        <p><strong>Add Audio</strong><br>
+        Visit the Audio tab to create horror atmospheres by layering sounds. After creating your mix, click the relevant save button to add it to your background.</p>
+        
+        <p><strong>Save Your Work</strong><br>
+        Save individual backgrounds, entities, or complete scenes with audio to preserve your creations.</p>
+      </div>
+    </div>
+  </div>
 
   <script src="background.js?v=72"></script>
   <script src="entity.js?v=72"></script>

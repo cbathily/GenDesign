@@ -1,8 +1,8 @@
 /* ============================================================
    BACKGROUND GENERATOR
-   Prozedurale liminale Räume als wählbare SZENEN / LEVELS.
-   Jede Szene hat eigene Palette, Geometrie + Signature-Details.
-   Ein-Punkt-Perspektive + noise Wände + Fog + Grain.
+   Procedural liminal spaces as selectable SCENES / LEVELS.
+   Each scene has its own palette, geometry + signature details.
+   One-point perspective + noise walls + Fog + Grain.
    ============================================================ */
 
 const BG = {
@@ -14,86 +14,86 @@ const BG = {
 };
 
 /* ----------------------------------------------------------------
-   SCENES — der Kern des Background-Generators.
+   SCENES — the core of the Background Generator.
    pal: base colors [r,g,b]   geo: renderer   detail: overlay key
-   hue/light/fog/grain: empfohlene defaults beim Szenenwechsel
+   hue/light/fog/grain: recommended defaults when switching scenes
 ---------------------------------------------------------------- */
 const BG_SCENES = {
   lobby: {
     label: 'Lobby', level: '0', title: 'The Lobby',
-    desc:  'Endloses gelbes Tapetenlabyrinth, summende Leuchtstoffröhren, fleckiger Teppich.',
+    desc:  'Endless yellow wallpaper labyrinth, humming fluorescent tubes, stained carpet.',
     pal: { wall:[168,152,58], floor:[150,132,66], ceil:[142,128,52], light:[255,248,188] },
     geo:'corridor', detail:'', hue:50, light:0.62, fog:0.34, grain:0.46,
   },
   habitable: {
     label: 'Habitable Zone', level: '1', title: 'The Habitable Zone',
-    desc:  'Industrieller Beton, flackernde Lichter, Rohre und Treppenhäuser.',
+    desc:  'Industrial concrete, flickering lights, pipes and stairwells.',
     pal: { wall:[120,122,120], floor:[92,93,90], ceil:[104,106,104], light:[225,232,240] },
     geo:'corridor', detail:'', hue:210, light:0.42, fog:0.30, grain:0.42,
   },
   pipes: {
     label: 'Pipe Dreams', level: '2', title: 'Pipe Dreams',
-    desc:  'Heißer, dunkler Tunnel aus kilometerlangen rostigen Rohren und Maschinerie.',
+    desc:  'Hot, dark tunnel of miles-long rusty pipes and machinery.',
     pal: { wall:[78,58,46], floor:[52,40,32], ceil:[44,34,28], light:[255,156,86] },
     geo:'corridor', detail:'pipes_h', hue:24, light:0.30, fog:0.46, grain:0.52,
   },
   substation: {
     label: 'Substation', level: '3', title: 'Electrical Substation',
-    desc:  'Dunkle Betonhallen voller Transformatoren, Kabel und sirrender Hochspannung.',
+    desc:  'Dark concrete halls full of transformers, cables, and buzzing high voltage.',
     pal: { wall:[80,82,86], floor:[52,54,58], ceil:[40,42,46], light:[255,236,140] },
     geo:'corridor', detail:'substation', hue:48, light:0.34, fog:0.34, grain:0.48,
   },
   office: {
     label: 'Office', level: '4', title: 'The Abandoned Office',
-    desc:  'Verlassenes Großraumbüro: Kabinen, Rasterdecke, totes Neonlicht.',
+    desc:  'Abandoned open office: cubicles, drop ceiling, dead neon lights.',
     pal: { wall:[178,170,150], floor:[120,112,96], ceil:[202,198,186], light:[246,248,236] },
     geo:'corridor', detail:'office', hue:46, light:0.55, fog:0.26, grain:0.40,
   },
   hotel: {
     label: 'Terror Hotel', level: '5', title: 'Terror Hotel',
-    desc:  'Endloser Hotelflur, gemusterter Teppich, nummerierte Türen, blutrote Tapete.',
+    desc:  'Endless hotel hallway, patterned carpet, numbered doors, blood-red wallpaper.',
     pal: { wall:[122,42,44], floor:[74,32,36], ceil:[60,28,30], light:[242,184,124] },
     geo:'corridor', detail:'hotel', hue:354, light:0.40, fog:0.34, grain:0.44,
   },
   lightsout: {
     label: 'Lights Out', level: '6', title: 'Lights Out',
-    desc:  'Vollkommene Dunkelheit. Nur der Strahl deiner Lampe — und etwas, das wartet.',
+    desc:  'Complete darkness. Only your flashlight beam — and something waiting.',
     pal: { wall:[30,30,32], floor:[18,18,20], ceil:[12,12,14], light:[210,222,255] },
     geo:'corridor', detail:'lightsout', hue:220, light:0.50, fog:0.18, grain:0.52,
   },
   thalasso: {
     label: 'Thalassophobia', level: '7', title: 'Thalassophobia',
-    desc:  'Endloses tiefes Wasser. Lichtstrahlen von oben, schwarzer Abgrund darunter.',
+    desc:  'Endless deep water. Light rays from above, black abyss below.',
     pal: { wall:[20,60,90], floor:[6,20,40], ceil:[60,120,160], light:[160,220,255] },
     geo:'open', detail:'thalasso', hue:205, light:0.50, fog:0.40, grain:0.30,
   },
   cave: {
     label: 'Cave System', level: '8', title: 'Cave System',
-    desc:  'Feuchtes Höhlensystem aus Fels, Stalaktiten und tropfender Finsternis.',
+    desc:  'Wet cave system of rock, stalactites, and dripping darkness.',
     pal: { wall:[62,56,50], floor:[34,30,26], ceil:[26,22,20], light:[255,200,130] },
     geo:'open', detail:'cave', hue:30, light:0.32, fog:0.42, grain:0.46,
   },
   pool: {
     label: 'Poolrooms', level: '10', title: 'The Poolrooms',
-    desc:  'Verlassene, gekachelte Wasserwelten in sanft beleuchtetem, klarem Wasser.',
+    desc:  'Abandoned, tiled water worlds in softly lit, clear water.',
     pal: { wall:[124,196,210], floor:[80,166,200], ceil:[150,206,216], light:[236,252,255] },
     geo:'corridor', detail:'pool', hue:190, light:0.72, fog:0.30, grain:0.28,
   },
   playplace: {
     label: 'Playplace', level: '11', title: 'Playplace',
-    desc:  'Regenbogen-Spielzone: Bällebad, Plastikröhren, falsche Fröhlichkeit.',
+    desc:  'Rainbow playzone: ball pit, plastic tubes, false cheerfulness.',
     pal: { wall:[150,162,170], floor:[120,152,96], ceil:[172,176,188], light:[255,242,212] },
     geo:'void', detail:'playplace', hue:140, light:0.78, fog:0.18, grain:0.34,
   },
   suburb: {
     label: 'Suburbs', level: '9', title: 'The Suburbs',
-    desc:  'Endlos sich wiederholende nächtliche Vorstadt unter rotem Straßenlicht.',
+    desc:  'Endlessly repeating suburban night under red street lights.',
     pal: { wall:[44,48,58], floor:[26,28,36], ceil:[18,22,40], light:[255,96,72] },
     geo:'outdoor', detail:'suburb', hue:8, light:0.36, fog:0.40, grain:0.42,
   },
   dreamcore: {
     label: 'Dreamcore Void', level: '12', title: 'Dreamcore',
-    desc:  'Weicher rosa Nebelraum, Nostalgie und Unbehagen, kaum greifbare Wände.',
+    desc:  'Soft pink fog space, nostalgia and unease, barely graspable walls.',
     pal: { wall:[212,152,182], floor:[182,150,172], ceil:[202,170,202], light:[255,212,236] },
     geo:'void', detail:'dream', hue:320, light:0.70, fog:0.46, grain:0.30,
   },
@@ -232,7 +232,7 @@ function drawCorridor(pg,cx,cy,wall,floor,ceil,lite,pillars){
 
 /* ============================================================
    LEVEL 0 — THE LOBBY
-   Echte Ein-Punkt-Perspektive: offener Raum, Decken-Raster mit
+   True one-point perspective: open space, ceiling grid, with
    Leuchtpanelen, freistehende Wandblöcke die in die Tiefe ziehen.
    Pinhole-Projektion proj(X,Y,Z): X seitlich, Y vertikal, Z Tiefe.
    ============================================================ */
@@ -443,13 +443,13 @@ function drawConcreteColumn(pg,proj,b,CY,FY,wall,lite,farZ){
 /* ============================================================
    LOBBY — WALK MODE (first-person prototype)
    Bewegliche Kamera (x,z,yaw), WASD + Pfeile, Kollision gegen
-   Blöcke. Welt ist ein unendliches deterministisches Raster:
+   Blocks. World is an infinite deterministic grid:
    jede Zelle (i,j) trägt evtl. einen Wandblock (per noise).
    ============================================================ */
 const EXPLORE = { on:false, x:0, z:0, yaw:0, speed:0.11, turn:0.045, keys:{} };
-// Taschenlampen-Batterie (alle Walk-Level): entlädt sich pro Frame — auch im Stillstand.
-// ramp = Eindunkeln nach Levelstart (0 → 1 über ~6 s)
-const FLASH = { batt:1.0, drain:0.0015, beam:1, ramp:0 };   // ~11 s pro Ladung → Batterien sind Pflicht
+// Flashlight battery (all walk levels): drains per frame — even when standing still.
+// ramp = darkening after level start (0 → 1 over ~6 s)
+const FLASH = { batt:1.0, drain:0.0015, beam:1, ramp:0 };   // ~11 s per charge → batteries are mandatory
 const LOBBY_CS = 2.7;            // grid cell size (block spacing)
 const LOBBY_CY = -1.15, LOBBY_FY = 1.0;
 
@@ -708,7 +708,7 @@ function generateWalkWorld(){
       if(!walkBlock(i,j) && !lobbyBlocked(x,z)) return {x,z};
     } return null;
   };
-  // Schlüssel öffnen den EXIT (alle Szenen) — Batterien halten das Licht am Leben
+  // Keys open the EXIT (all scenes) — batteries keep the light alive
   for(let n=0;n<6;n++){ const p=placeOpen(5,22); if(p) WALK.items.push({type:'key',x:p.x,z:p.z,taken:false}); }
   for(let n=0;n<10;n++){ const p=placeOpen(4,26); if(p) WALK.items.push({type:'battery',x:p.x,z:p.z,taken:false}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'chair',x:p.x,z:p.z}); }
@@ -723,7 +723,7 @@ function generateWalkWorld(){
   WALK.hp=WALK.hpMax; WALK.dead=false; WALK.deadBy='';
   WALK.hurt=0; WALK.msg=''; WALK.msgT=0; WALK.briefing=false;
   FLASH.ramp=0;                                      // Raum dunkelt nach dem Start langsam ein
-  STALKER.active=false;   // Stalker entfernt — die einzige Entity ist das eigene gespeicherte Monster
+  STALKER.active=false;   // Stalker removed — the only entity is your saved monster
 }
 // BFS through the open cells from the player's start to the exit; drop directional
 // markers along the route so the player can follow the trail to the door.
@@ -781,15 +781,16 @@ function updateWalkWorld(){
     }
   }
   if(WALK.msgT>0) WALK.msgT--;
-  // Batterie leer → Licht ist aus → Dunkelheit holt dich (alle Szenen)
+  // Battery dead → light off → darkness hunts you (all scenes)
   if(FLASH.batt<=0 && !WALK.won && !WALK.dead){ WALK.dead=true; WALK.deadBy='dark'; }
   if(surv) updateSurvival();
 }
 function survMsg(m){ WALK.msg=m; WALK.msgT=110; }
 // Dunkelheit + Taschenlampen-Sicht für Lobby/Habitable:
 // Nach dem Betreten dunkelt der Raum langsam ein (ramp 0 → 1 über ~6 s).
-// Die Batterie entlädt sich pro Frame (auch im Stillstand). Je leerer sie ist,
-// desto kleiner/schwächer der Kegel — bei 0% wird der Bildschirm komplett
+// The battery drains per frame (even when standing still). The lower it is,
+// the darker the world becomes. At 0, it's game over.
+// the smaller/weaker the cone — at 0% the screen becomes completely black
 // schwarz (die Deckkraft der Dunkelheit geht auf 100%) → Game Over.
 function applyFlashlightLite(pg){
   if(!WALK.won && !WALK.dead && !WALK.briefing){
@@ -802,7 +803,7 @@ function applyFlashlightLite(pg){
   FLASH.beam=beam;
   const W=pg.width,H=pg.height,cx=W/2,cy=H*0.5,g=pg.drawingContext;
   const bob=Math.sin(frameCount*0.11)*H*0.012;
-  const black=Math.pow(1-FLASH.batt, 3);                      // 0 → 1 wenn die Batterie stirbt
+  const black=Math.pow(1-FLASH.batt, 3);                      // 0 → 1 when battery dies
   const reach=W*(0.10 + 0.50*beam), inner=W*0.07*beam;
   const dark=FLASH.ramp*Math.min(1, 0.55 + 0.45*black);       // Rand: 0.55 → 1.0 (voll schwarz)
   g.save();
@@ -852,7 +853,7 @@ function updateSurvival(){
     }
   }
 }
-// Level neu starten (alle Szenen): Spieler auf Startposition, Welt neu aufbauen
+// Restart level (all scenes): player at start position, world rebuilt
 function restartWalk(){
   if(BG.scene==='habitable'){ EXPLORE.x=LOBBY_CS; EXPLORE.z=0; }
   else if(BG.scene==='lightsout'){ EXPLORE.x=2*LOBBY_CS; EXPLORE.z=2*LOBBY_CS; }
@@ -1186,8 +1187,8 @@ function drawSceneWalk(pg){
 }
 
 /* ============================================================
-   SAVED MONSTER — die im Entity-Tab gebaute Figur erscheint im Walk.
-   app.js füllt SAVED_MONSTER per "SAVE MONSTER"-Button (Sprite-Canvas).
+   SAVED MONSTER — the figure built in the Entity tab appears in Walk.
+   app.js fills SAVED_MONSTER via "SAVE MONSTER" button (sprite canvas).
    ============================================================ */
 let SAVED_MONSTER = null;                 // { img:<canvas>, box:{minX,minY,w,h} }
 const MONSTER = { x:0, z:0, active:false };

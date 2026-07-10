@@ -4,7 +4,7 @@
      Body · Head · Eyes · Face(Mouth/Expression) · Torso ·
      Arms · Legs · Skin(Type+Pattern) · Accessories
    (Kategorie "Rüstung/Armor" bewusst weggelassen.)
-   Alles 2D, prozedural, layerweise von hinten nach vorn gezeichnet.
+   All 2D, procedural, drawn layer-by-layer from back to front.
    Optionen sind frei kombinierbar + Randomizer + Presets.
    ============================================================ */
 

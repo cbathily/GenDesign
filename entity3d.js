@@ -1,18 +1,18 @@
 /* ============================================================
-   ENTITY 3D VIEWER  (Mehr-Modell-System)
-   Lädt ein GLB mit Three.js und macht es direkt editierbar.
+   ENTITY 3D VIEWER (Multi-model system)
+   Loads a GLB with Three.js and makes it directly editable.
 
    Aufbau-Prinzip "verbunden":
      figureRoot (Group)
-       ├─ gltfRoot   (das geladene Modell, uniform auf baseScale)
-       ├─ limbGroup  (prozedurale Arme/Beine)
-       ├─ eyeGroup   (prozedurale Augen)
-       ├─ mouthGroup (prozeduraler Mund)
+       ├─ gltfRoot   (the loaded model, uniform at baseScale)
+       ├─ limbGroup  (procedural arms/legs)
+       ├─ eyeGroup   (procedural eyes)
+       ├─ mouthGroup (procedural mouth)
        └─ extraGroup (spines/holes)
-   Alle Zusätze sind GESCHWISTER des Modells im selben Container.
-   Höhe/Breite skalieren figureRoot als Ganzes → Modell + Zusätze
-   bleiben fest zusammen ("am Körper"). Arme/Augen werden an den
-   echten Geometrie-Positionen der Körperteil-Nodes verankert.
+   All attachments are SIBLINGS of the model in the same container.
+   Height/width scale figureRoot as a whole → model + attachments
+   stay together ("on the body"). Arms/eyes are anchored at the
+   true geometry positions of the body-part nodes.
 
    Gesteuert von app.js via window.init3D / window.apply3DParams /
    window.setModel3D.
@@ -41,13 +41,13 @@ let currentCfg      = null;
 
 // 3D-Body-Parameter — direkt am 3D-Objekt editierbar (von app.js gesetzt)
 window.ENT3D = Object.assign({
-  bodyHeight: 100,  // % Höhe
+  bodyHeight: 100,  // % height
   bodyWidth:  100,  // % Breite
   addArms:    0,    // zusätzliche Arme
   addLegs:    0,    // zusätzliche Beine
-  eyes:       0,    // Augen-Anzahl
+  eyes:       0,    // eye count
   colorHue:   0,    // Körperfarbe 0-360
-  colorSat:   0,    // Farb-Intensität 0-100
+  colorSat:   0,    // color intensity 0-100
 }, window.ENT3D || {});
 
 // ---- Modell-Registry ----

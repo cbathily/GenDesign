@@ -442,12 +442,12 @@ function saveGameAudio() {
   const snapshot = AUDIO_STATE.layers.map((l, i) =>
     l ? { file: l.file, name: l.name, volume: AUDIO_STATE.volumes[i] } : null);
   if (!snapshot.some(Boolean)) {
-    if (typeof setStatus === 'function') setStatus('leer — erst eine Atmosphäre generieren.');
+    if (typeof setStatus === 'function') setStatus('empty — generate an atmosphere first.');
     return;
   }
   window.SAVED_GAME_AUDIO = snapshot;
   if (typeof flashSavedBtn === 'function') flashSavedBtn('#audio-save-game');
-  if (typeof setStatus === 'function') setStatus('Musik gespeichert — spielt im Walk-Modus (Background-Tab → ENTER LEVEL).');
+  if (typeof setStatus === 'function') setStatus('Music saved — plays in walk mode (Background tab → ENTER LEVEL).');
 }
 // (re)start the saved mix — called when the player enters walk mode
 function playGameAudio() {
