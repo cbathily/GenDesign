@@ -254,8 +254,9 @@ function toggleExplore(){
     EXPLORE.yaw=0; EXPLORE.keys={};
     FLASH.batt=1.0;
     generateWalkWorld();
+    if(typeof monsterSpawn==='function') monsterSpawn();      // gespeichertes Monster ins Level setzen
     if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
-    setStatus('▶ EXPLORE — find 3 Almond Water, then the EXIT');
+    setStatus(SAVED_MONSTER ? '▶ EXPLORE — dein Monster ist im Level …' : '▶ EXPLORE — find 3 Almond Water, then the EXIT');
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
   setWalkBtn();
 }
@@ -323,60 +324,114 @@ function syncBgUI(){
 // ============================================================
 //  ENTITY CONTROLS
 // ============================================================
-function bindEntity(){
-  const rebuild=()=>{ENT_cache=null;};
-  const bind=(id,key,fmt,scale)=>{
-    const el=$('#'+id), out=$('#'+id+'-v');
-    el.addEventListener('input',()=>{
-      let v=+el.value; if(scale) v=v/100;
-      ENT[key]=v; out.textContent=fmt?fmt(v):v; rebuild();
-    });
-  };
-  bind('ent-mass','mass',v=>v.toFixed(2),true);
-  bind('ent-limbs','limbs');
-  bind('ent-limblen','limbLen',v=>v.toFixed(2),true);
-  bind('ent-eyes','eyes');
+// slider id -> {key, scale, fmt}
+const ENT_SLIDERS = {
+  'ent-size':  {key:'size',      scale:true,  fmt:v=>v.toFixed(2)},
+  'ent-eyes':  {key:'eyes',      scale:false, fmt:v=>v|0},
+  'ent-arms':  {key:'arms',      scale:false, fmt:v=>v|0},
+  'ent-hue':   {key:'bodyHue',   scale:false, fmt:v=>Math.round(v)},
+  'ent-light': {key:'bodyLight', scale:false, fmt:v=>Math.round(v)},
+};
 
+function bindEntity(){
+  const dirty=()=>{ ENT.preset='custom'; };
+  // range sliders
+  for(const id in ENT_SLIDERS){
+    const cfg=ENT_SLIDERS[id], el=$('#'+id), out=$('#'+id+'-v');
+    if(!el) continue;
+    el.addEventListener('input',()=>{
+      let v=+el.value; if(cfg.scale) v=v/100;
+      ENT[cfg.key]=v; if(out) out.textContent=cfg.fmt?cfg.fmt(v):v; dirty();
+    });
+  }
+  // category dropdowns (data-key on each <select>)
+  $all('.ent-sel').forEach(sel=>{
+    sel.addEventListener('change',()=>{ ENT[sel.dataset.key]=sel.value; dirty(); setStatus(sel.dataset.key+': '+sel.value); });
+  });
+  // checkbox toggles (data-key on each input)
+  ['ent-symmetry','ent-spikes','ent-parasites','ent-chains'].forEach(id=>{
+    const el=$('#'+id); if(!el) return;
+    el.addEventListener('change',()=>{ ENT[el.dataset.key]=el.checked; dirty(); });
+  });
+  // segmented controls
   bindSeg('ent-track',v=>{ENT.track=+v; $('#ent-track-v').textContent=v==='1'?'on':'off';});
-  bindSeg('ent-shape',v=>{ENT.shape=v; rebuild(); setStatus('silhouette: '+v);});
   bindSeg('ent-render',v=>{ENT.render=v; setStatus('render: '+v);});
 
-  bindChips('ent-presets',name=>{
-    entApplyPreset(name); syncEntUI(); rebuild(); setStatus('preset: '+name);
-  });
+  bindChips('ent-presets',name=>{ entApplyPreset(name); syncEntUI(); setStatus('preset: '+name); });
 
+  $('#ent-reset').addEventListener('click',()=>{
+    entReset(); syncEntUI(); setStatus('entity geleert — bau sie neu auf.');
+  });
+  $('#ent-random').addEventListener('click',()=>{
+    entRandomize(); syncEntUI(); setSeed(ENT.seed); setStatus('randomized entity.');
+  });
   $('#ent-regen').addEventListener('click',()=>{
-    ENT.seed=Math.floor(Math.random()*99999); rebuild(); setSeed(ENT.seed); setStatus('regenerated.');
+    ENT.seed=Math.floor(Math.random()*99999); setSeed(ENT.seed); setStatus('regenerated.');
   });
   $('#ent-apply').addEventListener('click',()=>interpretEntPrompt($('#ent-prompt').value));
   $('#ent-save').addEventListener('click',()=>saveCanvasPNG('entity'));
+  $('#ent-save-monster').addEventListener('click',saveMonster);
+
+  syncEntUI();   // align controls with ENT defaults on load
 }
 
+// render the current entity to a transparent sprite + register it as the
+// monster that appears in walk mode (background.js: SAVED_MONSTER / monsterSpawn)
+let _monsterGfx = null;
+function saveMonster(){
+  if(typeof entIsEmpty==='function' && entIsEmpty()){ setStatus('leer — erst eine Entity bauen.'); return; }
+  const SW=480, SH=660;
+  const buf=createGraphics(SW,SH);
+  buf.pixelDensity(1); buf.clear();
+  drawEntity(buf, SW/2, SH*0.4, true);                 // spriteMode -> transparent, no FX
+  // tight bounding box of the non-transparent pixels
+  buf.loadPixels();
+  const px=buf.pixels; let minX=SW,minY=SH,maxX=0,maxY=0,found=false;
+  for(let y=0;y<SH;y++) for(let x=0;x<SW;x++){
+    if(px[(y*SW+x)*4+3]>16){ found=true;
+      if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+  }
+  if(!found){ setStatus('nichts gezeichnet — Monster nicht gespeichert.'); buf.remove(); return; }
+  if(_monsterGfx) _monsterGfx.remove();                // alten Sprite-Buffer freigeben
+  _monsterGfx=buf;
+  SAVED_MONSTER={ img:buf.canvas, box:{minX,minY,w:maxX-minX+1,h:maxY-minY+1} };
+  if(EXPLORE.on && typeof monsterSpawn==='function') monsterSpawn();   // sofort sichtbar, falls schon im Walk
+  setStatus('💾 Monster gespeichert — erscheint im Walk-Modus (Background-Tab → ENTER LEVEL).');
+}
+
+// light prompt -> preset / field mapping
 function interpretEntPrompt(txt){
   const t=txt.toLowerCase();
-  if(t.match(/tall|long|watcher|thin|lang/)) ENT.shape='tall';
-  else if(t.match(/blob|round|mass|fat/)) ENT.shape='blob';
-  else if(t.match(/human|person|player|avatar|figur/)) ENT.shape='humanoid';
-
-  const eyeM=t.match(/(\d+)\s*eye/); if(eyeM) ENT.eyes=Math.min(24,+eyeM[1]);
-  else if(t.match(/many eye|eyed|augen|covered/)) ENT.eyes=14;
-  else if(t.match(/one eye|single/)) ENT.eyes=1;
-
-  if(t.match(/leg|limb|crawl|spider|arm/)) ENT.limbs=6;
-  if(t.match(/thin|long limb|dünn/)) ENT.limbLen=0.95;
+  for(const name in ENT_PRESETS){ if(t.includes(name)){ entApplyPreset(name); break; } }
+  if(t.match(/spider|insect|spinne/))      ENT.legs='many';
+  if(t.match(/ghost|geist|float|schweb/))  ENT.body='floating', ENT.legs='none';
+  if(t.match(/robot|mech|maschine/))       ENT.body='mechanical', ENT.skin='metal';
+  if(t.match(/demon|dämon|devil|teufel/))  ENT.accHorns='curved', ENT.accWings='demon';
+  if(t.match(/snake|serpent|wurm|schlange/)) ENT.body='serpentine';
+  if(t.match(/many eye|augen|eyed/))       ENT.eyes=8;
+  if(t.match(/glow|leucht/))               ENT.eyeType='glowing';
   if(t.match(/pixel|gameboy|1.?bit|dither/)) ENT.render='dither';
   else if(t.match(/photo|grain|polaroid|vhs/)) ENT.render='photo-grain';
-
-  syncEntUI(); ENT_cache=null;
+  syncEntUI();
   ENT.seed=Math.floor(Math.random()*99999); setSeed(ENT.seed);
   setStatus('interpreted: "'+txt.slice(0,28)+'"');
 }
+
 function syncEntUI(){
-  $('#ent-mass').value=ENT.mass*100; $('#ent-mass-v').textContent=ENT.mass.toFixed(2);
-  $('#ent-limbs').value=ENT.limbs; $('#ent-limbs-v').textContent=ENT.limbs;
-  $('#ent-limblen').value=ENT.limbLen*100; $('#ent-limblen-v').textContent=ENT.limbLen.toFixed(2);
-  $('#ent-eyes').value=ENT.eyes; $('#ent-eyes-v').textContent=ENT.eyes;
-  $('#ent-shape').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===ENT.shape));
+  // sliders
+  for(const id in ENT_SLIDERS){
+    const cfg=ENT_SLIDERS[id], el=$('#'+id), out=$('#'+id+'-v'); if(!el) continue;
+    const raw = cfg.scale ? ENT[cfg.key]*100 : ENT[cfg.key];
+    el.value=raw; if(out) out.textContent=cfg.fmt?cfg.fmt(ENT[cfg.key]):ENT[cfg.key];
+  }
+  // dropdowns
+  $all('.ent-sel').forEach(sel=>{ if(ENT[sel.dataset.key]!=null) sel.value=ENT[sel.dataset.key]; });
+  // toggles
+  ['ent-symmetry','ent-spikes','ent-parasites','ent-chains'].forEach(id=>{
+    const el=$('#'+id); if(el) el.checked=!!ENT[el.dataset.key];
+  });
+  // segmented
+  $('#ent-track').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===String(ENT.track)));
   $('#ent-render').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===ENT.render));
   $('#ent-presets').querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===ENT.preset));
 }

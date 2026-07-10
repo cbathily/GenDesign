@@ -958,6 +958,7 @@ function drawLobbyWalk(pg){
 
   // ---- items: almond water, exit, chairs, puddles (far -> near) ----
   drawWalkItems(pg,proj,near);
+  drawSavedMonster(pg,proj,near);
   pg.pop();
 
   // ---- far darkness toward the horizon ----
@@ -1020,9 +1021,57 @@ function drawProp(pg,p,proj,near){
 
 // dispatch first-person walk by active scene
 function drawSceneWalk(pg){
+  monsterUpdate();
   if(BG.scene==='habitable') drawHabitableWalk(pg);
   else if(BG.scene==='lightsout') drawLightsoutWalk(pg);
   else drawLobbyWalk(pg);
+}
+
+/* ============================================================
+   SAVED MONSTER — die im Entity-Tab gebaute Figur erscheint im Walk.
+   app.js füllt SAVED_MONSTER per "SAVE MONSTER"-Button (Sprite-Canvas).
+   ============================================================ */
+let SAVED_MONSTER = null;                 // { img:<canvas>, box:{minX,minY,w,h} }
+const MONSTER = { x:0, z:0, active:false };
+
+function monsterSpawn(){                   // beim Betreten des Levels platzieren
+  if(!SAVED_MONSTER){ MONSTER.active=false; return; }
+  const ang = EXPLORE.yaw + (Math.random()-0.5)*1.4;
+  for(let r=10; r>=4; r-=0.5){
+    const x=EXPLORE.x+Math.sin(ang)*r, z=EXPLORE.z+Math.cos(ang)*r;
+    if(!lobbyBlocked(x,z)){ MONSTER.x=x; MONSTER.z=z; MONSTER.active=true; return; }
+  }
+  MONSTER.x=EXPLORE.x; MONSTER.z=EXPLORE.z+6; MONSTER.active=true;
+}
+function monsterUpdate(){                   // schleicht langsam auf den Spieler zu
+  if(!MONSTER.active || !SAVED_MONSTER) return;
+  const dx=EXPLORE.x-MONSTER.x, dz=EXPLORE.z-MONSTER.z, d=Math.hypot(dx,dz)||1;
+  if(d>1.5){
+    const step=0.045, nx=MONSTER.x+(dx/d)*step, nz=MONSTER.z+(dz/d)*step;
+    if(!lobbyBlocked(nx,MONSTER.z)) MONSTER.x=nx;
+    if(!lobbyBlocked(MONSTER.x,nz)) MONSTER.z=nz;
+  }
+}
+function monsterLOSBlocked(ax,az,bx,bz){
+  const steps=Math.ceil(Math.hypot(ax-bx,az-bz)/0.5);
+  for(let i=1;i<steps;i++){ const t=i/steps; if(lobbyBlocked(ax+(bx-ax)*t, az+(bz-az)*t)) return true; }
+  return false;
+}
+// billboard the saved-monster sprite at its world position
+function drawSavedMonster(pg, proj, near){
+  if(!MONSTER.active || !SAVED_MONSTER) return;
+  const base=proj(MONSTER.x, LOBBY_FY, MONSTER.z); if(base.ez<near || base.ez>34) return;
+  if(monsterLOSBlocked(EXPLORE.x,EXPLORE.z, MONSTER.x,MONSTER.z)) return;   // hinter einer Wand
+  const top=proj(MONSTER.x, LOBBY_FY-2.0, MONSTER.z);
+  const h=base.y-top.y; if(h<14) return;
+  const sm=SAVED_MONSTER, aspect=sm.box.w/sm.box.h;
+  const tH=h, tW=h*aspect, dx=base.x-tW/2, dy=base.y-tH;
+  const fade=constrain(map(base.ez,2,30,1,0.18),0.18,1);
+  pg.push(); pg.noStroke();
+  pg.fill(0,0,0,80*fade); pg.ellipse(base.x, base.y, tW*0.7, tW*0.16);     // Kontaktschatten
+  const gc=pg.drawingContext; gc.save(); gc.globalAlpha=fade;
+  gc.drawImage(sm.img, sm.box.minX, sm.box.minY, sm.box.w, sm.box.h, dx, dy, tW, tH);
+  gc.restore(); pg.pop();
 }
 
 /* ============================================================
@@ -1113,6 +1162,7 @@ function drawLightsoutWalk(pg){
   // ---- glowing items pierce the dark (drawn after the mask) ----
   pg.push(); pg.colorMode(RGB,255); pg.noStroke();
   drawWalkItems(pg,proj,near);
+  drawSavedMonster(pg,proj,near);
   pg.pop();
 
   applyGrain(pg, BG.grain);
@@ -1212,6 +1262,7 @@ function drawHabitableWalk(pg){
   }
 
   drawWalkItems(pg,proj,near);
+  drawSavedMonster(pg,proj,near);
   pg.pop();
 
   // far darkness

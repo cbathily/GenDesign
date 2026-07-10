@@ -147,26 +147,62 @@
 
         <div class="preset-row" id="ent-presets">
           <button class="chip active" data-preset="watcher">watcher</button>
-          <button class="chip" data-preset="blob">eye-blob</button>
-          <button class="chip" data-preset="crawler">crawler</button>
-          <button class="chip" data-preset="player">player avatar</button>
+          <button class="chip" data-preset="demon">demon</button>
+          <button class="chip" data-preset="spider">spider</button>
+          <button class="chip" data-preset="ghost">ghost</button>
+          <button class="chip" data-preset="mech">mech</button>
+          <button class="chip" data-preset="hydra">hydra</button>
+          <button class="chip" data-preset="cosmic">cosmic</button>
         </div>
 
+        <div class="action-row">
+          <button class="btn-ghost" id="ent-reset">✕ LEER</button>
+          <button class="btn-solid" id="ent-random">🎲 RANDOMIZE</button>
+        </div>
+
+        <!-- BODY / GRUNDFORM (Basis — zuerst wählen) -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🧍 1 · BODY (Basis)</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Body Mass</span><em id="ent-mass-v">0.6</em></div>
-          <input type="range" id="ent-mass" min="10" max="100" value="60">
+          <div class="ctrl-label"><span>Grundform</span></div>
+          <select class="ent-sel" id="ent-body" data-key="body">
+            <option value="none">— keins —</option>
+            <option value="humanoid">Humanoid</option><option value="quadruped">Quadruped</option>
+            <option value="insectoid">Insectoid</option><option value="serpentine">Serpentine</option>
+            <option value="blob">Blob / Amorph</option><option value="floating">Floating / Geist</option>
+            <option value="mechanical">Mechanical Frame</option>
+          </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Limbs</span><em id="ent-limbs-v">2</em></div>
-          <input type="range" id="ent-limbs" min="0" max="8" value="2">
+          <div class="ctrl-label"><span>Größe</span><em id="ent-size-v">0.55</em></div>
+          <input type="range" id="ent-size" min="10" max="100" value="55">
+        </div>
+
+        <!-- HEAD -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🧠 2 · HEAD</span></div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Kopfform</span></div>
+          <select class="ent-sel" id="ent-head" data-key="head">
+            <option value="none">— keins —</option>
+            <option value="human">Menschlich</option><option value="skull">Schädel</option>
+            <option value="wolf">Wolf</option><option value="bird">Vogel</option><option value="lizard">Eidechse</option>
+            <option value="hydra">Hydra (mehrere)</option><option value="eyeless">Augenlos / glatt</option>
+            <option value="monitor">TV / Monitor</option><option value="mask">Maske</option><option value="crystal">Kristall</option>
+          </select>
+        </div>
+
+        <!-- EYES -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">👁️ 3 · EYES</span></div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Anzahl</span><em id="ent-eyes-v">0</em></div>
+          <input type="range" id="ent-eyes" min="0" max="12" value="0">
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Limb Length</span><em id="ent-limblen-v">0.7</em></div>
-          <input type="range" id="ent-limblen" min="10" max="100" value="70">
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Eyes</span><em id="ent-eyes-v">9</em></div>
-          <input type="range" id="ent-eyes" min="0" max="24" value="9">
+          <div class="ctrl-label"><span>Augen-Typ</span></div>
+          <select class="ent-sel" id="ent-eyetype" data-key="eyeType">
+            <option value="normal">Normal</option><option value="glowing">Glowing</option>
+            <option value="compound">Compound (Insekt)</option><option value="lens">Kamera-Linse</option>
+            <option value="hollow">Leere Höhlen</option><option value="cosmos">Kosmos</option>
+          </select>
         </div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Eye Tracking</span><em id="ent-track-v">on</em></div>
@@ -175,22 +211,142 @@
             <button class="seg-btn" data-v="0">static</button>
           </div>
         </div>
+
+        <!-- FACE -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">💀 4 · FACE</span></div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Silhouette</span></div>
-          <div class="seg" id="ent-shape">
-            <button class="seg-btn active" data-v="blob">blob</button>
-            <button class="seg-btn" data-v="tall">tall</button>
-            <button class="seg-btn" data-v="humanoid">humanoid</button>
-          </div>
+          <div class="ctrl-label"><span>Mund</span></div>
+          <select class="ent-sel" id="ent-mouth" data-key="mouth">
+            <option value="none">Kein Mund</option>
+            <option value="normal">Normal</option><option value="maw">Reißmaul</option>
+            <option value="beak">Schnabel</option><option value="many">Mehrere</option>
+          </select>
         </div>
         <div class="ctrl">
-          <div class="ctrl-label"><span>Dither / Render</span></div>
+          <div class="ctrl-label"><span>Ausdruck</span></div>
+          <select class="ent-sel" id="ent-expr" data-key="expr">
+            <option value="neutral">Neutral</option><option value="angry">Wütend</option>
+            <option value="sad">Traurig</option><option value="glitch">Glitch</option><option value="berserk">Berserk</option>
+          </select>
+        </div>
+
+        <!-- TORSO -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🦴 5 · TORSO</span></div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Körper</span></div>
+          <select class="ent-sel" id="ent-torso" data-key="torso">
+            <option value="none">— keins —</option>
+            <option value="humanoid">Humanoid</option><option value="armored">Gepanzert</option>
+            <option value="organic">Organisch</option><option value="crystalline">Kristallin</option>
+            <option value="scaly">Schuppig</option><option value="mechanical">Mechanisch</option><option value="hollow">Hohl</option>
+          </select>
+        </div>
+
+        <!-- ARMS -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🦾 6 · ARMS</span></div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Anzahl</span><em id="ent-arms-v">0</em></div>
+          <input type="range" id="ent-arms" min="0" max="8" value="0">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Arm-Typ</span></div>
+          <select class="ent-sel" id="ent-armtype" data-key="armType">
+            <option value="human">Menschlich</option><option value="tentacle">Tentakel</option>
+            <option value="claws">Klauen</option><option value="blades">Klingen</option>
+            <option value="stone">Steinarm</option><option value="mech">Greifarm</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Symmetrie</span></div>
+          <label class="ent-toggle"><input type="checkbox" id="ent-symmetry" data-key="armSym" checked> symmetrisch</label>
+        </div>
+
+        <!-- LEGS -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🦵 7 · LEGS / MOVEMENT</span></div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Beine</span></div>
+          <select class="ent-sel" id="ent-legs" data-key="legs">
+            <option value="none">Keine (schwebend)</option><option value="two">2 Beine</option>
+            <option value="four">4 Beine</option><option value="many">Viele (Spider)</option>
+            <option value="wheels">Räder</option><option value="hover">Hover</option>
+            <option value="slime">Slime</option><option value="jump">Sprungbeine</option>
+          </select>
+        </div>
+
+        <!-- SKIN -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🧥 8 · SKIN</span></div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Oberfläche</span></div>
+          <select class="ent-sel" id="ent-skin" data-key="skin">
+            <option value="flesh">Fleisch</option><option value="fur">Fell</option>
+            <option value="scales">Schuppen</option><option value="metal">Metall</option>
+            <option value="stone">Stein</option><option value="energy">Energie / Plasma</option><option value="crystal">Kristall</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Muster</span></div>
+          <select class="ent-sel" id="ent-pattern" data-key="pattern">
+            <option value="none">Keins</option><option value="stripes">Streifen</option>
+            <option value="runes">Runen</option><option value="biolum">Biolumineszenz</option>
+            <option value="scars">Narben</option><option value="cracks">Risse / Glitch</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Farbton</span><em id="ent-hue-v">210</em></div>
+          <input type="range" id="ent-hue" min="0" max="360" value="210">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Helligkeit</span><em id="ent-light-v">45</em></div>
+          <input type="range" id="ent-light" min="2" max="90" value="45">
+        </div>
+
+        <!-- ACCESSORIES -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🎭 9 · ACCESSORIES</span></div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Hörner</span></div>
+          <select class="ent-sel" id="ent-horns" data-key="accHorns">
+            <option value="none">Keine</option><option value="curved">Gebogen</option>
+            <option value="straight">Gerade</option><option value="ram">Widder</option><option value="antler">Geweih</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Flügel</span></div>
+          <select class="ent-sel" id="ent-wings" data-key="accWings">
+            <option value="none">Keine</option><option value="angel">Engel</option>
+            <option value="demon">Dämon</option><option value="insect">Insekt</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Schwanz</span></div>
+          <select class="ent-sel" id="ent-tail" data-key="accTail">
+            <option value="none">Keiner</option><option value="lizard">Echse</option>
+            <option value="devil">Teufel</option><option value="fish">Fisch</option><option value="tentacle">Tentakel</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span>Aura</span></div>
+          <select class="ent-sel" id="ent-aura" data-key="accAura">
+            <option value="none">Keine</option><option value="flames">Flammen</option>
+            <option value="glow">Glow</option><option value="smoke">Rauch</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <label class="ent-toggle"><input type="checkbox" id="ent-spikes" data-key="accSpikes"> Rückenstacheln</label>
+          <label class="ent-toggle"><input type="checkbox" id="ent-parasites" data-key="accParasites"> Parasiten</label>
+          <label class="ent-toggle"><input type="checkbox" id="ent-chains" data-key="accChains"> Ketten</label>
+        </div>
+
+        <!-- RENDER -->
+        <div class="ctrl ctrl-cat"><span class="cat-tag">🎞️ RENDER</span></div>
+        <div class="ctrl">
           <div class="seg" id="ent-render">
             <button class="seg-btn active" data-v="solid">solid</button>
             <button class="seg-btn" data-v="dither">1-bit dither</button>
-            <button class="seg-btn" data-v="grain">photo-grain</button>
+            <button class="seg-btn" data-v="photo-grain">photo-grain</button>
           </div>
         </div>
+
+        <button class="btn-solid wide" id="ent-save-monster">💾 SAVE MONSTER → INS SPIEL</button>
 
         <div class="action-row">
           <button class="btn-ghost" id="ent-regen">⟳ REGENERATE</button>
@@ -213,10 +369,10 @@
     </aside>
   </main>
 
-  <script src="background.js?v=38"></script>
-  <script src="entity.js?v=38"></script>
-  <script src="audio.js?v=38"></script>
-  <script src="lightsout3d.js?v=38"></script>
-  <script src="app.js?v=38"></script>
+  <script src="background.js?v=43"></script>
+  <script src="entity.js?v=43"></script>
+  <script src="audio.js?v=43"></script>
+  <script src="lightsout3d.js?v=43"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>

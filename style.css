@@ -471,3 +471,18 @@ input[type=range]::-moz-range-thumb{
   .panel{border-left:none;border-top:2px solid var(--gold-dim)}
   .tabs .tab{padding:6px 9px;font-size:14px}
 }
+
+/* ---- entity layered-system controls ---- */
+.ctrl-cat{margin-top:14px;border-top:1px solid var(--line-soft);padding-top:8px}
+.cat-tag{font-family:var(--ascii);font-size:12px;letter-spacing:1px;color:var(--gold-glow);text-transform:uppercase}
+.ent-sel{
+  width:100%;background:var(--parchment);color:var(--ink);
+  border:1px solid var(--line);border-radius:3px;padding:6px 8px;
+  font-family:var(--serif);font-size:14px;cursor:pointer;
+}
+.ent-sel:focus{outline:none;border-color:var(--gold)}
+.ent-toggle{
+  display:inline-flex;align-items:center;gap:6px;margin-right:14px;
+  font-family:var(--serif);font-size:13px;color:var(--ink-dim);cursor:pointer;
+}
+.ent-toggle input{accent-color:var(--gold)}
