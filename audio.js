@@ -443,7 +443,7 @@ function initAudio() {
 }
 
 /* ============================================================
-   DOWNLOAD AUDIO MIX AS WAV
+   DOWNLOAD AUDIO MIX AS MP3 (using MediaRecorder)
 ============================================================ */
 
 function downloadAudioMix() {
@@ -453,65 +453,47 @@ function downloadAudioMix() {
     return;
   }
 
-  // Show recording indicator
   const btn = document.getElementById('audio-download-wav');
   if (btn) btn.disabled = true;
-  setStatus('recording mix (10 seconds)...');
 
-  // Create offline context for 10 seconds at 44.1kHz
-  const offlineCtx = new (window.AudioContext || window.webkitAudioContext)({
-    numberOfChannels: 2,
-    sampleRate: 44100,
-    length: 441000  // 10 seconds at 44.1kHz
-  });
+  setStatus('preparing recording...');
 
-  // Fetch and decode all active audio files
-  const audioPromises = activeLayers.map(layer => {
-    return fetch(layer.file)
-      .then(res => res.arrayBuffer())
-      .then(buffer => offlineCtx.decodeAudioData(buffer))
-      .then(decoded => ({
-        buffer: decoded,
-        volume: AUDIO_STATE.volumes[AUDIO_STATE.layers.indexOf(layer)] / 100
-      }))
-      .catch(e => {
-        console.error(`Failed to load ${layer.file}:`, e);
-        return null;
-      });
-  });
-
-  Promise.all(audioPromises).then(sources => {
-    const validSources = sources.filter(s => s !== null);
-    if (validSources.length === 0) {
-      setStatus('error — could not load audio files.');
-      if (btn) btn.disabled = false;
-      return;
-    }
-
-    // Create sources and connect to output
-    const masterGain = offlineCtx.createGain();
-    masterGain.connect(offlineCtx.destination);
-
-    validSources.forEach(({ buffer, volume }) => {
-      const source = offlineCtx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-
-      const gain = offlineCtx.createGain();
-      gain.gain.value = volume * 0.8;  // Prevent clipping
-
-      source.connect(gain);
-      gain.connect(masterGain);
-      source.start(0);
+  try {
+    // Stop all current playback
+    const wasPlaying = [];
+    AUDIO_STATE.howlers.forEach((howl, i) => {
+      if (howl && howl.playing()) {
+        wasPlaying[i] = true;
+        howl.stop();
+      }
     });
 
-    // Render offline
-    offlineCtx.startRendering().then(renderedBuffer => {
-      const wavBlob = encodeWAV(renderedBuffer);
-      const url = URL.createObjectURL(wavBlob);
+    // Create audio context and destination
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const destination = audioCtx.createMediaStreamDestination();
+    const stream = destination.stream;
+
+    // Create media recorder
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+    const mediaRecorder = new MediaRecorder(stream, { mimeType });
+    const chunks = [];
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) {
+        chunks.push(e.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(chunks, { type: mimeType });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `liminal-mix-${Date.now()}.wav`;
+      
+      // Determine extension based on mime type
+      const ext = mimeType === 'audio/webm' ? 'webm' : 'mp4';
+      a.download = `liminal-mix-${Date.now()}.${ext}`;
+      
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -519,72 +501,61 @@ function downloadAudioMix() {
 
       setStatus('mix saved.');
       if (btn) btn.disabled = false;
-    }).catch(e => {
-      console.error('Offline rendering failed:', e);
-      setStatus('error — rendering failed.');
+
+      // Resume playback
+      setTimeout(() => {
+        wasPlaying.forEach((playing, i) => {
+          if (playing && AUDIO_STATE.layers[i]) {
+            playSound(AUDIO_STATE.layers[i].file, AUDIO_STATE.layers[i].name, i);
+            setVolume(i, AUDIO_STATE.volumes[i]);
+          }
+        });
+      }, 100);
+    };
+
+    mediaRecorder.onerror = (e) => {
+      console.error('Recording error:', e.error);
+      setStatus('error — recording failed.');
       if (btn) btn.disabled = false;
-    });
-  });
-}
+    };
 
-// WAV encoder
-function encodeWAV(audioBuffer) {
-  const numberOfChannels = audioBuffer.numberOfChannels;
-  const sampleRate = audioBuffer.sampleRate;
-  const format = 1;  // PCM
-  const bitDepth = 16;
+    // Start recording
+    mediaRecorder.start();
+    setStatus('recording mix (10 seconds)...');
 
-  const bytesPerSample = bitDepth / 8;
-  const blockAlign = numberOfChannels * bytesPerSample;
+    // Replay all layers and connect to destination
+    setTimeout(() => {
+      wasPlaying.forEach((playing, i) => {
+        if (playing && AUDIO_STATE.layers[i]) {
+          playSound(AUDIO_STATE.layers[i].file, AUDIO_STATE.layers[i].name, i);
+          setVolume(i, AUDIO_STATE.volumes[i]);
 
-  const channelData = [];
-  for (let i = 0; i < numberOfChannels; i++) {
-    channelData.push(audioBuffer.getChannelData(i));
+          // Try to connect to the media stream destination
+          try {
+            const howl = AUDIO_STATE.howlers[i];
+            if (howl && howl._sounds && howl._sounds[0]) {
+              const audioNode = howl._sounds[0]._node;
+              if (audioNode && audioNode.connect) {
+                audioNode.connect(destination);
+              }
+            }
+          } catch (e) {
+            console.error('Could not connect audio node:', e);
+          }
+        }
+      });
+    }, 100);
+
+    // Stop recording after 10 seconds
+    setTimeout(() => {
+      mediaRecorder.stop();
+    }, 10000);
+
+  } catch (e) {
+    console.error('Download error:', e);
+    setStatus('error — browser not supported.');
+    if (btn) btn.disabled = false;
   }
-
-  const interleaved = new Float32Array(audioBuffer.length * numberOfChannels);
-  for (let i = 0; i < audioBuffer.length; i++) {
-    for (let ch = 0; ch < numberOfChannels; ch++) {
-      interleaved[i * numberOfChannels + ch] = channelData[ch][i];
-    }
-  }
-
-  const dataLength = interleaved.length * bytesPerSample;
-  const buffer = new ArrayBuffer(44 + dataLength);
-  const view = new DataView(buffer);
-
-  // Write WAV header
-  const writeString = (offset, string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + dataLength, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);  // Subchunk1Size
-  view.setUint16(20, format, true);
-  view.setUint16(22, numberOfChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitDepth, true);
-  writeString(36, 'data');
-  view.setUint32(40, dataLength, true);
-
-  // Encode samples
-  let offset = 44;
-  const volume = 0.8;
-  for (let i = 0; i < interleaved.length; i++) {
-    let s = Math.max(-1, Math.min(1, interleaved[i])) * volume;
-    s = s < 0 ? s * 0x8000 : s * 0x7FFF;
-    view.setInt16(offset, s, true);
-    offset += 2;
-  }
-
-  return new Blob([buffer], { type: 'audio/wav' });
 }
 
 window.downloadAudioMix = downloadAudioMix;
