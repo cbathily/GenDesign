@@ -421,6 +421,12 @@ function initAudio() {
     actionRow.appendChild(stopAllBtn);
   }
 
+  // Download WAV button
+  const downloadBtn = document.getElementById('audio-download-wav');
+  if (downloadBtn) {
+    downloadBtn.onclick = downloadAudioMix;
+  }
+
   // "save current mix → use in game" button (same logic as SAVE MONSTER → INS SPIEL)
   const panel = document.querySelector('[data-panel="audio"]');
   if (panel && !panel.querySelector('#audio-save-game')) {
@@ -435,6 +441,153 @@ function initAudio() {
   updateStatus();
   log('✓ Audio system ready');
 }
+
+/* ============================================================
+   DOWNLOAD AUDIO MIX AS WAV
+============================================================ */
+
+function downloadAudioMix() {
+  const activeLayers = AUDIO_STATE.layers.filter(l => l !== null);
+  if (activeLayers.length === 0) {
+    setStatus('empty — create a mix first.');
+    return;
+  }
+
+  // Show recording indicator
+  const btn = document.getElementById('audio-download-wav');
+  if (btn) btn.disabled = true;
+  setStatus('recording mix (10 seconds)...');
+
+  // Create offline context for 10 seconds at 44.1kHz
+  const offlineCtx = new (window.AudioContext || window.webkitAudioContext)({
+    numberOfChannels: 2,
+    sampleRate: 44100,
+    length: 441000  // 10 seconds at 44.1kHz
+  });
+
+  // Fetch and decode all active audio files
+  const audioPromises = activeLayers.map(layer => {
+    return fetch(layer.file)
+      .then(res => res.arrayBuffer())
+      .then(buffer => offlineCtx.decodeAudioData(buffer))
+      .then(decoded => ({
+        buffer: decoded,
+        volume: AUDIO_STATE.volumes[AUDIO_STATE.layers.indexOf(layer)] / 100
+      }))
+      .catch(e => {
+        console.error(`Failed to load ${layer.file}:`, e);
+        return null;
+      });
+  });
+
+  Promise.all(audioPromises).then(sources => {
+    const validSources = sources.filter(s => s !== null);
+    if (validSources.length === 0) {
+      setStatus('error — could not load audio files.');
+      if (btn) btn.disabled = false;
+      return;
+    }
+
+    // Create sources and connect to output
+    const masterGain = offlineCtx.createGain();
+    masterGain.connect(offlineCtx.destination);
+
+    validSources.forEach(({ buffer, volume }) => {
+      const source = offlineCtx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const gain = offlineCtx.createGain();
+      gain.gain.value = volume * 0.8;  // Prevent clipping
+
+      source.connect(gain);
+      gain.connect(masterGain);
+      source.start(0);
+    });
+
+    // Render offline
+    offlineCtx.startRendering().then(renderedBuffer => {
+      const wavBlob = encodeWAV(renderedBuffer);
+      const url = URL.createObjectURL(wavBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `liminal-mix-${Date.now()}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setStatus('mix saved.');
+      if (btn) btn.disabled = false;
+    }).catch(e => {
+      console.error('Offline rendering failed:', e);
+      setStatus('error — rendering failed.');
+      if (btn) btn.disabled = false;
+    });
+  });
+}
+
+// WAV encoder
+function encodeWAV(audioBuffer) {
+  const numberOfChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const format = 1;  // PCM
+  const bitDepth = 16;
+
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numberOfChannels * bytesPerSample;
+
+  const channelData = [];
+  for (let i = 0; i < numberOfChannels; i++) {
+    channelData.push(audioBuffer.getChannelData(i));
+  }
+
+  const interleaved = new Float32Array(audioBuffer.length * numberOfChannels);
+  for (let i = 0; i < audioBuffer.length; i++) {
+    for (let ch = 0; ch < numberOfChannels; ch++) {
+      interleaved[i * numberOfChannels + ch] = channelData[ch][i];
+    }
+  }
+
+  const dataLength = interleaved.length * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataLength);
+  const view = new DataView(buffer);
+
+  // Write WAV header
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataLength, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);  // Subchunk1Size
+  view.setUint16(20, format, true);
+  view.setUint16(22, numberOfChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataLength, true);
+
+  // Encode samples
+  let offset = 44;
+  const volume = 0.8;
+  for (let i = 0; i < interleaved.length; i++) {
+    let s = Math.max(-1, Math.min(1, interleaved[i])) * volume;
+    s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    view.setInt16(offset, s, true);
+    offset += 2;
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+window.downloadAudioMix = downloadAudioMix;
 
 // ---- save the current mix as the in-game atmosphere (mirrors SAVED_MONSTER) ----
 window.SAVED_GAME_AUDIO = null;   // [{file,name,volume} | null] × 3
