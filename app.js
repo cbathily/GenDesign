@@ -259,8 +259,8 @@ function toggleExplore(){
     if(typeof monsterSpawn==='function') monsterSpawn();      // gespeichertes Monster ins Level setzen
     if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
     setStatus(BG.scene==='lightsout'
-      ? '▶ LIGHTS OUT — find the 4-digit code on the walls, enter it at the EXIT door. Shine your light at the thing in the dark.'
-      : (SAVED_MONSTER ? '▶ EXPLORE — dein Monster ist im Level …' : '▶ EXPLORE — find 3 Almond Water, then the EXIT'));
+      ? '▶ LIGHTS OUT — the full door code is written on ONE wall. Enter it at the EXIT. Shine your light at the thing in the dark.'
+      : (SAVED_MONSTER ? '▶ EXPLORE — dein Monster ist im Level …' : '▶ EXPLORE — find 3 keys, then the EXIT'));
   } else { EXPLORE.keys={}; setStatus('exited walk mode.'); }
   setWalkBtn();
 }

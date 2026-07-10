@@ -266,24 +266,24 @@ function l3ExitTextTex(){
   x.fillText('EXIT', 256, 90);
   const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
 }
-// glowing amber code plate: shows its slot (#1..#4) and the digit to enter at the door
-function l3CodeTex(pos, digit){
+// glowing amber code plate: shows the FULL 4-digit door code on one wall
+function l3CodeTex(code){
   return l3CanvasTex(x=>{
     x.clearRect(0,0,256,256);
     x.translate(128,128); x.scale(-1,1); x.translate(-128,-128);   // pre-mirror for flipped projection
-    x.fillStyle='rgba(14,10,4,0.82)'; x.fillRect(28,28,200,200);
-    x.strokeStyle='rgba(255,196,86,0.95)'; x.lineWidth=5; x.strokeRect(28,28,200,200);
+    x.fillStyle='rgba(14,10,4,0.82)'; x.fillRect(20,48,216,160);
+    x.strokeStyle='rgba(255,196,86,0.95)'; x.lineWidth=5; x.strokeRect(20,48,216,160);
     x.fillStyle='rgba(255,205,110,0.98)'; x.textAlign='center'; x.textBaseline='middle';
-    x.font='bold 150px monospace'; x.fillText(digit, 128, 150);
-    x.font='bold 30px monospace'; x.fillText('CODE #'+pos, 128, 60);
+    x.font='bold 30px monospace'; x.fillText('DOOR CODE', 128, 80);
+    x.font='bold 88px monospace'; x.fillText(code, 128, 152);
   }, false);
 }
 function l3BuildCodeMarks(sc){
   const CS=L3CFG.CS, off=CS/2+0.05, y=1.5;
   for(const m of (WALK.codeMarks||[])){
-    const mat=new THREE.MeshStandardMaterial({map:l3CodeTex(m.pos,m.digit), emissive:0xffb347, emissiveIntensity:0.7,
+    const mat=new THREE.MeshStandardMaterial({map:l3CodeTex(m.code), emissive:0xffb347, emissiveIntensity:0.7,
                                               transparent:true, roughness:1.0, side:THREE.DoubleSide, depthWrite:false});
-    const pl=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.1), mat);
+    const pl=new THREE.Mesh(new THREE.PlaneGeometry(1.4,1.4), mat);
     const X=m.i*CS, Z=m.j*CS;
     if(m.dir==='-x'){ pl.position.set(X-off,y,Z); pl.rotation.y=-Math.PI/2; }
     else if(m.dir==='+x'){ pl.position.set(X+off,y,Z); pl.rotation.y=Math.PI/2; }

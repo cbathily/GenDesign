@@ -683,7 +683,8 @@ function drawSirenHead(pg, cx0, topY, headH, w, seed, alpha, hunt, fade){
 
 /* ============================================================
    LOBBY ESCAPE — items, wall details & objective
-   Sammle Almond Water → schaltet die EXIT-Tür frei → entkomme.
+   Sammle 3 Schlüssel → schaltet die EXIT-Tür frei → entkomme.
+   (Lights Out: Almond Water = Heilung, Tür öffnet per Wand-Code.)
    ============================================================ */
 const WALK = { items:[], props:[], collected:0, need:3, won:false,
   // Lights Out survival layer
@@ -704,7 +705,9 @@ function generateWalkWorld(){
       if(!walkBlock(i,j) && !lobbyBlocked(x,z)) return {x,z};
     } return null;
   };
-  for(let n=0;n<6;n++){ const p=placeOpen(5,22); if(p) WALK.items.push({type:'almond',x:p.x,z:p.z,taken:false}); }
+  // Lobby/Habitable: Schlüssel sammeln · Lights Out: Almond Water als Heilung
+  const coll = (BG.scene==='lightsout') ? 'almond' : 'key';
+  for(let n=0;n<6;n++){ const p=placeOpen(5,22); if(p) WALK.items.push({type:coll,x:p.x,z:p.z,taken:false}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'chair',x:p.x,z:p.z}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'puddle',x:p.x,z:p.z}); }
   const ep=placeOpen(18,28)||{x:0,z:22}; WALK.items.push({type:'exit',x:ep.x,z:ep.z});
@@ -722,20 +725,16 @@ function generateWalkWorld(){
   if(BG.scene==='lightsout'){
     // random 4-digit code (never '0000' — that is the emergency master code)
     do { WALK.code = String((rnd()*10000)|0).padStart(4,'0'); } while(WALK.code==='0000');
-    // place 4 numbered code plates on walls, spread out
-    for(let k=0;k<4;k++){
-      for(let t=0;t<260;t++){
-        const i=((rnd()*36)|0)-18, j=((rnd()*36)|0)-18;
-        if(!lightsoutWall(i,j)) continue;
-        const dirs=[];
-        if(!lightsoutWall(i-1,j)) dirs.push('-x'); if(!lightsoutWall(i+1,j)) dirs.push('+x');
-        if(!lightsoutWall(i,j-1)) dirs.push('-z'); if(!lightsoutWall(i,j+1)) dirs.push('+z');
-        if(!dirs.length) continue;
-        let ok=true; for(const u of WALK.codeMarks){ if(Math.hypot(i-u.i,j-u.j)<5){ ok=false; break; } }
-        if(!ok) continue;
-        WALK.codeMarks.push({ i, j, dir:dirs[(rnd()*dirs.length)|0], pos:k+1, digit:WALK.code[k] });
-        break;
-      }
+    // EINE Wand trägt den kompletten 4-stelligen Code (einfacher zu spielen)
+    for(let t=0;t<260;t++){
+      const i=((rnd()*36)|0)-18, j=((rnd()*36)|0)-18;
+      if(!lightsoutWall(i,j)) continue;
+      const dirs=[];
+      if(!lightsoutWall(i-1,j)) dirs.push('-x'); if(!lightsoutWall(i+1,j)) dirs.push('+x');
+      if(!lightsoutWall(i,j-1)) dirs.push('-z'); if(!lightsoutWall(i,j+1)) dirs.push('+z');
+      if(!dirs.length) continue;
+      WALK.codeMarks.push({ i, j, dir:dirs[(rnd()*dirs.length)|0], code:WALK.code });
+      break;
     }
     // spawn the stalker a safe distance from the player's start
     const sa=rnd()*Math.PI*2;
@@ -785,6 +784,7 @@ function updateWalkWorld(){
   const surv = BG.scene==='lightsout';
   for(const it of WALK.items){
     const d=distXZ(it.x,it.z,EXPLORE.x,EXPLORE.z);
+    if(it.type==='key' && !it.taken && d<1.2){ it.taken=true; WALK.collected++; }
     if(it.type==='almond' && !it.taken && d<1.2){
       it.taken=true;
       if(surv){ WALK.hp=Math.min(WALK.hpMax, WALK.hp+34); survMsg('+34 HP — Almond Water'); }
@@ -917,7 +917,7 @@ function drawFaceDecal(pg,fc,sh){
   }
 }
 function drawWalkItems(pg,proj,near){
-  const list=WALK.items.filter(it=>!(it.type==='almond'&&it.taken))
+  const list=WALK.items.filter(it=>!((it.type==='almond'||it.type==='key')&&it.taken))
     .map(it=>({it,ez:proj(it.x,LOBBY_FY,it.z).ez})).sort((a,b)=>b.ez-a.ez);
   for(const o of list){
     if(o.ez<near) continue;
@@ -955,6 +955,25 @@ function drawWalkItem(pg,it,proj){
     pg.fill(58,150,92,a); pg.rect(cxs-w/2,yT,w,H);                 // green cell
     pg.fill(205,205,210,a); pg.rect(cxs-w*0.28,yT-H*0.08,w*0.56,H*0.1); // + terminal
     pg.fill(30,32,30,a); pg.rect(cxs-w/2,yT+H*0.46,w,H*0.16);     // label band
+  } else if(it.type==='key'){
+    // goldener Schlüssel — schwebt, glüht, gut sichtbar
+    const H=sc(0.4), w=Math.abs(ppw)*0.3, bob=Math.sin(frameCount*0.06+it.x)*H*0.06;
+    const yT=base.y-H+bob, gr=Math.max(w*1.6, sc(0.4));
+    gctx.save(); const g=gctx.createRadialGradient(cxs,yT+H*0.5,0,cxs,yT+H*0.5,gr);
+    g.addColorStop(0,`rgba(255,214,110,${0.38*fade})`); g.addColorStop(1,'rgba(0,0,0,0)');
+    gctx.fillStyle=g; gctx.fillRect(cxs-gr,yT-H*0.2,gr*2,H*1.6); gctx.restore();
+    const sw=Math.max(2,w*0.09);
+    // Ring (Griff) oben
+    pg.noFill(); pg.stroke(235,190,80,a); pg.strokeWeight(sw);
+    pg.ellipse(cxs, yT+H*0.18, w*0.34, w*0.34);
+    // Schaft
+    pg.line(cxs, yT+H*0.18+w*0.17, cxs, yT+H*0.92);
+    // Bart (zwei Zähne)
+    pg.line(cxs, yT+H*0.92, cxs+w*0.16, yT+H*0.92);
+    pg.line(cxs, yT+H*0.76, cxs+w*0.12, yT+H*0.76);
+    pg.noStroke();
+    // Glanzpunkt
+    pg.fill(255,240,190,180*fade); pg.ellipse(cxs-w*0.08, yT+H*0.12, sw*1.2, sw*1.2);
   } else if(it.type==='almond'){
     // iconic Almond Water bottle: cream body, silver cap, script label
     const H=sc(0.56), w=Math.abs(ppw)*0.22, bob=Math.sin(frameCount*0.06+it.x)*H*0.03;
@@ -1458,11 +1477,27 @@ function drawWalkHUD(pg,cx,cy){
   // objective (top-left)
   const unlocked=WALK.collected>=WALK.need;
   pg.textFont('monospace'); pg.textSize(12);
-  pg.fill(150,200,240); pg.text('◇ ALMOND WATER  '+WALK.collected+' / '+WALK.need, 20, 26);
+  pg.fill(235,190,80); pg.text('◇ KEYS  '+WALK.collected+' / '+WALK.need, 20, 26);
   pg.fill(unlocked?[70,230,130]:[210,90,80]);
-  pg.text(unlocked?'◇ EXIT  UNLOCKED — find the door':'◇ EXIT  LOCKED', 20, 44);
+  pg.text(unlocked?'◇ EXIT  UNLOCKED — follow the arrow':'◇ EXIT  LOCKED', 20, 44);
   if(SAVED_MONSTER && MONSTER.active && !WALK.dead && !WALK.won){
     pg.fill(235,140,90); pg.text('◇ deine Entity jagt dich — lass dich nicht fangen', 20, 62);
+  }
+  // Pfeil-Kompass zum Exit, sobald die Tür offen ist
+  if(unlocked && !WALK.won && !WALK.dead){
+    const exit=WALK.items.find(it=>it.type==='exit');
+    if(exit){
+      const dx=exit.x-EXPLORE.x, dz=exit.z-EXPLORE.z, dist=Math.hypot(dx,dz);
+      const s=Math.sin(EXPLORE.yaw), c=Math.cos(EXPLORE.yaw);
+      const bear=Math.atan2(dx*c-dz*s, dx*s+dz*c);   // 0 = geradeaus, + = rechts
+      const ay=40, r=13;
+      pg.push(); pg.translate(cx,ay); pg.rotate(bear); pg.noStroke();
+      pg.fill(80,230,140);
+      pg.triangle(0,-r, -r*0.62, r*0.52, r*0.62, r*0.52);
+      pg.pop();
+      pg.fill(180,235,200); pg.textSize(11); pg.textAlign(CENTER,TOP);
+      pg.text('EXIT '+Math.round(dist)+'m', cx, ay+r+2); pg.textAlign(LEFT,BASELINE);
+    }
   }
   drawIntroOverlay(pg,cx,cy);
   // win overlay
@@ -1501,12 +1536,13 @@ function drawIntroOverlay(pg,cx,cy){
   const lines = BG.scene==='lightsout'
     ? ['ES IST STOCKDUNKEL.',
        'Batterien sammeln = Taschenlampe am Leben halten.',
-       'Finde die 4 Ziffern an den Wänden → Code am EXIT eingeben.',
+       'Der komplette 4er-Code steht an EINER Wand.',
+       'Code am EXIT eingeben (Notfall-Code: 0000).',
        'Licht vertreibt das Wesen. Almond Water heilt.']
     : (SAVED_MONSTER
-      ? ['Sammle 3 Almond Water → EXIT öffnet sich.',
+      ? ['Sammle 3 Schlüssel → EXIT öffnet sich (Pfeil zeigt hin).',
          'Deine Entity jagt dich — lass dich nicht fangen!']
-      : ['Sammle 3 Almond Water → EXIT öffnet sich.']);
+      : ['Sammle 3 Schlüssel → EXIT öffnet sich (Pfeil zeigt hin).']);
   const bh=34+lines.length*18, bw=Math.min(W-40, 560), bx=cx-bw/2, by=H*0.16;
   pg.noStroke();
   pg.fill(0,0,0,190*a); pg.rect(bx,by,bw,bh,6);
@@ -1531,7 +1567,7 @@ function drawSurvivalHUD(pg,cx,cy){
   pg.textSize(12);
   pg.fill(WALK.unlocked?[80,230,140]:[210,170,90]);
   pg.text(WALK.unlocked ? '◇ DOOR OPEN — step through to escape'
-                        : '◇ FIND THE 4-DIGIT CODE  (numbers on the walls)', 20, hy+hh+22);
+                        : '◇ FIND THE DOOR CODE — written on ONE wall', 20, hy+hh+22);
   pg.fill(170,170,180);
   pg.text('◇ then enter it at the door keypad', 20, hy+hh+40);
   // stalker proximity warning
