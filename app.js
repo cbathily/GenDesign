@@ -272,6 +272,8 @@ function bindExploreKeys(){
     if(e.code==='Escape'){ exitExplore(); return; }
     // Lights Out: door keypad / retry-on-death intercepts keys before movement
     if(BG.scene==='lightsout' && typeof survKeypad==='function' && survKeypad(e.code)){ e.preventDefault(); return; }
+    // Game Over (alle Szenen): R startet das Level neu
+    if(WALK.dead && e.code==='KeyR'){ if(typeof restartWalk==='function') restartWalk(); e.preventDefault(); return; }
     EXPLORE.keys[e.code]=true;
     if(nav.includes(e.code)) e.preventDefault();
   });

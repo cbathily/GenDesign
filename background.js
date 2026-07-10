@@ -688,7 +688,7 @@ function drawSirenHead(pg, cx0, topY, headH, w, seed, alpha, hunt, fade){
 const WALK = { items:[], props:[], collected:0, need:3, won:false,
   // Lights Out survival layer
   hp:100, hpMax:100, code:'', guess:'', codeMarks:[], unlocked:false, dead:false,
-  atDoor:false, hurt:0, msg:'', msgT:0 };
+  atDoor:false, hurt:0, msg:'', msgT:0, deadBy:'', introT:0 };
 // the stalker entity that hunts you in Lights Out (repelled by the flashlight beam)
 const STALKER = { x:0, z:0, active:false, lit:false, hitCd:0, repel:0, seed:0 };
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -715,11 +715,13 @@ function generateWalkWorld(){
     for(let n=0;n<26;n++){ const p=placeOpen(3,27); if(p) WALK.props.push({type:T[(rnd()*T.length)|0], x:p.x, z:p.z}); }
   }
   // ---- Lights Out survival setup: reset HP, build the 4-digit door code, hunt entity ----
-  WALK.hp=WALK.hpMax; WALK.guess=''; WALK.unlocked=false; WALK.dead=false;
+  WALK.hp=WALK.hpMax; WALK.guess=''; WALK.unlocked=false; WALK.dead=false; WALK.deadBy='';
   WALK.atDoor=false; WALK.hurt=0; WALK.msg=''; WALK.msgT=0; WALK.code=''; WALK.codeMarks=[]; WALK.pathMarks=[];
+  WALK.introT=540;                                   // ~9 s Kurzanleitung beim Levelstart
   STALKER.active=false;
   if(BG.scene==='lightsout'){
-    WALK.code = '0000';                                          // fixed code for testing
+    // random 4-digit code (never '0000' — that is the emergency master code)
+    do { WALK.code = String((rnd()*10000)|0).padStart(4,'0'); } while(WALK.code==='0000');
     // place 4 numbered code plates on walls, spread out
     for(let k=0;k<4;k++){
       for(let t=0;t<260;t++){
@@ -827,18 +829,19 @@ function updateSurvival(){
       WALK.hp=Math.max(0, WALK.hp-9); WALK.hurt=1; STALKER.hitCd=26; survMsg('-9 HP — it caught you');
       const ang=Math.atan2(sx,sz);                               // shove it back so it isn't instant death
       STALKER.x=EXPLORE.x+Math.sin(ang)*3.2; STALKER.z=EXPLORE.z+Math.cos(ang)*3.2;
-      if(WALK.hp<=0){ WALK.dead=true; survMsg('YOU DIED'); }
+      if(WALK.hp<=0){ WALK.dead=true; WALK.deadBy='stalker'; survMsg('YOU DIED'); }
     }
   }
 }
 // keypad at the exit door — type the 4 digits found on the walls
 function survKeypad(code){
   if(BG.scene!=='lightsout') return false;
-  if(WALK.dead){ if(code==='KeyR'){ restartLightsout(); return true; } return false; }
+  if(WALK.dead){ if(code==='KeyR'){ restartWalk(); return true; } return false; }
   if(WALK.won || WALK.unlocked || !WALK.atDoor) return false;
   if(code==='Backspace'){ WALK.guess=WALK.guess.slice(0,-1); return true; }
   if(code==='Enter'){
-    if(WALK.guess===WALK.code){ WALK.unlocked=true; survMsg('ACCESS GRANTED — door open'); }
+    // richtiger Code ODER Notfall-Code 0000 öffnet die Tür
+    if(WALK.guess===WALK.code || WALK.guess==='0000'){ WALK.unlocked=true; survMsg('ACCESS GRANTED — door open'); }
     else { survMsg('✗ WRONG CODE'); WALK.guess=''; }
     return true;
   }
@@ -846,10 +849,15 @@ function survKeypad(code){
   if(m){ if(WALK.guess.length<4) WALK.guess+=m[1]; return true; }
   return false;
 }
-function restartLightsout(){
-  EXPLORE.x=2*LOBBY_CS; EXPLORE.z=2*LOBBY_CS; EXPLORE.yaw=0; EXPLORE.keys={};
+// Level neu starten (alle Szenen): Spieler auf Startposition, Welt neu aufbauen
+function restartWalk(){
+  if(BG.scene==='habitable'){ EXPLORE.x=LOBBY_CS; EXPLORE.z=0; }
+  else if(BG.scene==='lightsout'){ EXPLORE.x=2*LOBBY_CS; EXPLORE.z=2*LOBBY_CS; }
+  else { EXPLORE.x=0; EXPLORE.z=0; }
+  EXPLORE.yaw=0; EXPLORE.keys={};
   if(typeof FLASH!=='undefined') FLASH.batt=1.0;
   generateWalkWorld();
+  if(typeof monsterSpawn==='function') monsterSpawn();
   if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
 }
 function faceUV(fc,u,v){
@@ -987,65 +995,8 @@ function drawWalkItem(pg,it,proj){
   }
 }
 
-/* ---- TUNG TUNG TUNG SAHUR — wooden follower in the Lobby (ambient, no game logic) ---- */
-const TUNG = { x:0, z:0, active:false };
-function spawnTung(){
-  const ang=EXPLORE.yaw+Math.PI+(Math.random()-0.5)*0.6;          // behind the player
-  for(let r=10;r>=3;r-=0.5){ const x=EXPLORE.x+Math.sin(ang)*r, z=EXPLORE.z+Math.cos(ang)*r;
-    if(!lobbyBlocked(x,z)){ TUNG.x=x; TUNG.z=z; TUNG.active=true; return; } }
-  TUNG.x=EXPLORE.x; TUNG.z=EXPLORE.z-6; TUNG.active=true;
-}
-function updateTung(){
-  if(!TUNG.active){ spawnTung(); return; }
-  const dx=EXPLORE.x-TUNG.x, dz=EXPLORE.z-TUNG.z, d=Math.hypot(dx,dz)||1;
-  if(d>1.5){ const step=0.07, nx=TUNG.x+(dx/d)*step, nz=TUNG.z+(dz/d)*step;   // creep, slightly slower than player
-    if(!lobbyBlocked(nx,TUNG.z)) TUNG.x=nx; if(!lobbyBlocked(TUNG.x,nz)) TUNG.z=nz; }
-}
-// 2D billboard: wooden baton body, grinning face, stick limbs, baseball bat
-function drawTung2D(pg, proj, near){
-  const e=TUNG; if(!e.active) return;
-  const base=proj(e.x, LOBBY_FY, e.z); if(base.ez<near) return;
-  if(losBlocked(EXPLORE.x,EXPLORE.z, e.x,e.z)) return;            // hidden behind a block
-  const headTop=proj(e.x, LOBBY_FY-2.0, e.z);
-  const h=base.y-headTop.y; if(h<24) return;
-  const fade=constrain(map(base.ez,2,30,1,0.2),0.2,1), a=255*fade;
-  const cxs=base.x, footY=base.y, bob=Math.sin(frameCount*0.08+e.x)*h*0.012, w=h*0.26;
-  const bodyTop=footY-h+h*0.06+bob, bodyBot=footY-h*0.16+bob, bodyH=bodyBot-bodyTop;
-  pg.push(); pg.noStroke();
-  pg.fill(0,0,0,70*fade); pg.ellipse(cxs, footY, w*1.8, w*0.4);                       // shadow
-  pg.stroke(150,108,60,a); pg.strokeWeight(Math.max(2,w*0.13));                       // legs
-  pg.line(cxs-w*0.26, bodyBot, cxs-w*0.32, footY); pg.line(cxs+w*0.26, bodyBot, cxs+w*0.32, footY);
-  pg.noStroke(); pg.fill(150,108,60,a);
-  pg.ellipse(cxs-w*0.34, footY, w*0.5,w*0.22); pg.ellipse(cxs+w*0.34, footY, w*0.5,w*0.22); // feet
-  // arms
-  pg.stroke(150,108,60,a); pg.strokeWeight(Math.max(2,w*0.11));
-  pg.line(cxs-w*0.45, bodyTop+bodyH*0.45, cxs-w*0.95, bodyTop+bodyH*0.72);
-  pg.line(cxs+w*0.45, bodyTop+bodyH*0.42, cxs+w*1.0,  bodyTop+bodyH*0.18);             // raised
-  pg.noStroke();
-  // baseball bat in the raised hand
-  pg.push(); pg.translate(cxs+w*1.0, bodyTop+bodyH*0.18); pg.rotate(-0.7);
-  pg.fill(120,82,42,a); pg.rect(-w*0.08, -w*1.4, w*0.2, w*1.6, w*0.08); pg.pop();
-  // wooden baton body
-  pg.fill(180,124,66,a); pg.rect(cxs-w/2, bodyTop, w, bodyH, w*0.5);
-  pg.stroke(108,72,34,a*0.8); pg.strokeWeight(Math.max(1,w*0.045));                   // wood rings
-  for(const t of [0.34,0.62]){ const ry=bodyTop+bodyH*t; pg.line(cxs-w*0.42, ry, cxs+w*0.42, ry); }
-  pg.noStroke();
-  // face
-  const fy=bodyTop+bodyH*0.27;
-  pg.fill(246,241,222,a);                                                             // eye whites
-  pg.ellipse(cxs-w*0.2, fy, w*0.34, w*0.44); pg.ellipse(cxs+w*0.2, fy, w*0.34, w*0.44);
-  pg.fill(20,14,8,a);                                                                 // pupils
-  pg.ellipse(cxs-w*0.18, fy+w*0.03, w*0.16, w*0.2); pg.ellipse(cxs+w*0.18, fy+w*0.03, w*0.16, w*0.2);
-  pg.stroke(92,60,30,a); pg.strokeWeight(Math.max(2,w*0.08));                         // angry brows
-  pg.line(cxs-w*0.36, fy-w*0.3, cxs-w*0.04, fy-w*0.16); pg.line(cxs+w*0.36, fy-w*0.3, cxs+w*0.04, fy-w*0.16);
-  pg.noStroke();
-  pg.fill(28,15,8,a); pg.arc(cxs, fy+w*0.52, w*0.55, w*0.42, 0, PI);                  // wide grin
-  pg.pop();
-}
-
 function drawLobbyWalk(pg){
   updateWalkWorld();
-  updateTung();                          // Tung Tung Sahur follows you through the Lobby
   const W=pg.width,H=pg.height,cx=W/2,cy=H*0.5;
   const f=W*0.9, near=0.28;
   const P=BG_SCENES.lobby.pal, amt=0.4;
@@ -1150,11 +1101,6 @@ function drawLobbyWalk(pg){
   dk.addColorStop(0,'rgba(8,7,4,0.55)'); dk.addColorStop(1,'rgba(8,7,4,0)');
   gctx.fillStyle=dk; gctx.fillRect(cx-W*0.36,cy-W*0.36,W*0.72,W*0.72); gctx.restore();
 
-  // Tung Tung Sahur (drawn over the world)
-  pg.push(); pg.colorMode(RGB,255); pg.noStroke();
-  drawTung2D(pg, proj, near);
-  pg.pop();
-
   applyGrain(pg, BG.grain);
   applyVignette(pg);
   drawWalkHUD(pg,cx,cy);
@@ -1232,12 +1178,15 @@ function monsterSpawn(){                   // beim Betreten des Levels platziere
   MONSTER.x=EXPLORE.x; MONSTER.z=EXPLORE.z+6; MONSTER.active=true;
 }
 function monsterUpdate(){                   // schleicht langsam auf den Spieler zu
-  if(!MONSTER.active || !SAVED_MONSTER) return;
+  if(!MONSTER.active || !SAVED_MONSTER || WALK.won || WALK.dead) return;
   const dx=EXPLORE.x-MONSTER.x, dz=EXPLORE.z-MONSTER.z, d=Math.hypot(dx,dz)||1;
-  if(d>1.5){
+  if(d>1.4){
     const step=0.045, nx=MONSTER.x+(dx/d)*step, nz=MONSTER.z+(dz/d)*step;
     if(!lobbyBlocked(nx,MONSTER.z)) MONSTER.x=nx;
     if(!lobbyBlocked(MONSTER.x,nz)) MONSTER.z=nz;
+  } else {
+    // gefangen → sofort Game Over (roter Screen, R = Neustart)
+    WALK.dead=true; WALK.deadBy='entity'; survMsg('GAME OVER');
   }
 }
 function monsterLOSBlocked(ax,az,bx,bz){
@@ -1512,6 +1461,10 @@ function drawWalkHUD(pg,cx,cy){
   pg.fill(150,200,240); pg.text('◇ ALMOND WATER  '+WALK.collected+' / '+WALK.need, 20, 26);
   pg.fill(unlocked?[70,230,130]:[210,90,80]);
   pg.text(unlocked?'◇ EXIT  UNLOCKED — find the door':'◇ EXIT  LOCKED', 20, 44);
+  if(SAVED_MONSTER && MONSTER.active && !WALK.dead && !WALK.won){
+    pg.fill(235,140,90); pg.text('◇ deine Entity jagt dich — lass dich nicht fangen', 20, 62);
+  }
+  drawIntroOverlay(pg,cx,cy);
   // win overlay
   if(WALK.won){
     pg.fill(0,0,0,180); pg.rect(0,0,W,H);
@@ -1521,6 +1474,47 @@ function drawWalkHUD(pg,cx,cy){
     pg.fill(150,150,140); pg.textSize(12); pg.text('press ESC to return', cx, cy+44);
     pg.textAlign(LEFT,BASELINE);
   }
+  drawGameOverOverlay(pg,cx,cy);
+}
+
+// roter GAME-OVER-Screen (alle Szenen) — R startet das Level neu
+function drawGameOverOverlay(pg,cx,cy){
+  if(!WALK.dead) return;
+  const W=pg.width,H=pg.height;
+  pg.noStroke();
+  pg.fill(118,8,8,215); pg.rect(0,0,W,H);                       // roter Vollbild-Layer
+  const pulse=8+Math.sin(frameCount*0.1)*4;
+  pg.textAlign(CENTER,CENTER); pg.textFont('monospace');
+  pg.fill(255,235,230); pg.textSize(42+pulse*0.2); pg.text('GAME OVER', cx, cy-20);
+  pg.fill(255,190,180); pg.textSize(13);
+  pg.text(WALK.deadBy==='entity' ? 'deine Entity hat dich erwischt' : 'the dark took you', cx, cy+16);
+  pg.fill(255,215,205); pg.textSize(12); pg.text('R = neu starten   ·   ESC = verlassen', cx, cy+44);
+  pg.textAlign(LEFT,BASELINE);
+}
+
+// knappe Spielbeschreibung in den ersten Sekunden nach Levelstart
+function drawIntroOverlay(pg,cx,cy){
+  if(!WALK.introT || WALK.introT<=0 || WALK.dead || WALK.won) return;
+  WALK.introT--;
+  const W=pg.width,H=pg.height;
+  const a=Math.min(1, WALK.introT/60);                          // ausblenden am Ende
+  const lines = BG.scene==='lightsout'
+    ? ['ES IST STOCKDUNKEL.',
+       'Batterien sammeln = Taschenlampe am Leben halten.',
+       'Finde die 4 Ziffern an den Wänden → Code am EXIT eingeben.',
+       'Licht vertreibt das Wesen. Almond Water heilt.']
+    : (SAVED_MONSTER
+      ? ['Sammle 3 Almond Water → EXIT öffnet sich.',
+         'Deine Entity jagt dich — lass dich nicht fangen!']
+      : ['Sammle 3 Almond Water → EXIT öffnet sich.']);
+  const bh=34+lines.length*18, bw=Math.min(W-40, 560), bx=cx-bw/2, by=H*0.16;
+  pg.noStroke();
+  pg.fill(0,0,0,190*a); pg.rect(bx,by,bw,bh,6);
+  pg.textAlign(CENTER,TOP); pg.textFont('monospace');
+  pg.fill(235,215,150,255*a); pg.textSize(12); pg.text('— SO FUNKTIONIERT’S —', cx, by+10);
+  pg.fill(225,220,205,255*a); pg.textSize(11);
+  lines.forEach((ln,i)=>pg.text(ln, cx, by+30+i*18));
+  pg.textAlign(LEFT,BASELINE);
 }
 // Lights Out survival HUD: HP, objective/code progress, keypad, hurt flash, death/win
 function drawSurvivalHUD(pg,cx,cy){
@@ -1565,6 +1559,7 @@ function drawSurvivalHUD(pg,cx,cy){
   // transient message
   if(WALK.msgT>0 && WALK.msg){ pg.fill(235,230,210, Math.min(255, WALK.msgT*5)); pg.textSize(13);
     pg.textAlign(CENTER,CENTER); pg.text(WALK.msg, cx, cy-H*0.16); pg.textAlign(LEFT,BASELINE); }
+  drawIntroOverlay(pg,cx,cy);
   // keypad overlay when standing at the door
   if(WALK.atDoor && !WALK.unlocked && !WALK.won && !WALK.dead){
     const bw=210, bh=104, bx=cx-bw/2, by=cy-bh/2;
@@ -1579,16 +1574,10 @@ function drawSurvivalHUD(pg,cx,cy){
       pg.text(WALK.guess[i]||'_', sx+sw/2, sy+20);
     }
     pg.fill(150,180,160); pg.textSize(10); pg.textAlign(CENTER,TOP);
-    pg.text('type digits · ENTER submit · ⌫ delete', cx, by+bh-16); pg.textAlign(LEFT,BASELINE);
+    pg.text('type digits · ENTER submit · ⌫ delete', cx, by+bh-28);
+    pg.fill(120,140,125); pg.text('code not found? emergency code 0000', cx, by+bh-15); pg.textAlign(LEFT,BASELINE);
   }
-  // death overlay
-  if(WALK.dead){
-    pg.fill(0,0,0,200); pg.rect(0,0,W,H); pg.textAlign(CENTER,CENTER);
-    pg.fill(220,50,50); pg.textSize(38); pg.text('YOU DIED', cx, cy-16);
-    pg.fill(200,180,180); pg.textSize(13); pg.text('the dark took you', cx, cy+16);
-    pg.fill(150,150,140); pg.textSize(12); pg.text('press R to retry   ·   ESC to leave', cx, cy+44);
-    pg.textAlign(LEFT,BASELINE);
-  }
+  drawGameOverOverlay(pg,cx,cy);
   // win overlay
   if(WALK.won){
     pg.fill(0,0,0,190); pg.rect(0,0,W,H); pg.textAlign(CENTER,CENTER);
