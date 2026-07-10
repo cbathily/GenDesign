@@ -355,6 +355,9 @@ input[type=range]::-moz-range-thumb{
 }
 .btn-solid:hover{box-shadow:0 0 20px rgba(244,227,107,.5),inset 0 1px 0 rgba(255,255,255,.3),inset 0 -3px 6px rgba(0,0,0,.25)}
 .btn-solid.wide{flex:1}
+/* Wide buttons that stand alone (not inside a flex .action-row) need vertical spacing */
+:not(.action-row)>.btn-solid.wide,:not(.action-row)>.btn-ghost.wide{display:block;width:100%;margin-top:14px}
+#bg-walk{margin-top:18px}
 .btn-solid.playing{background-image:linear-gradient(160deg,var(--blood-glow),var(--blood)),var(--noise);border-color:var(--blood);color:#fdf1e8}
 
 .btn-ghost::before,.btn-ghost::after,.btn-solid::before,.btn-solid::after{

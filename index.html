@@ -7,10 +7,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=75">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <!-- Module Three.js for entity3d.js (GLB-Viewer) — separate from global r128 for lightsout3d.js -->
   <script type="importmap">
@@ -180,7 +181,7 @@
         </div>
 
         <!-- BODY / BASE SHAPE (Base — choose first) -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">1 · BODY (Base)</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">BODY (Base)</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Base Shape</span></div>
           <select class="ent-sel" id="ent-body" data-key="body">
@@ -197,7 +198,7 @@
         </div>
 
         <!-- HEAD -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">2 · HEAD</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">HEAD</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Head Shape</span></div>
           <select class="ent-sel" id="ent-head" data-key="head">
@@ -210,7 +211,7 @@
         </div>
 
         <!-- EYES -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">3 · EYES</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">EYES</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Count</span><em id="ent-eyes-v">0</em></div>
           <input type="range" id="ent-eyes" min="0" max="12" value="0">
@@ -223,16 +224,10 @@
             <option value="hollow">Empty Sockets</option><option value="cosmos">Cosmos</option>
           </select>
         </div>
-        <div class="ctrl">
-          <div class="ctrl-label"><span>Eye Tracking</span><em id="ent-track-v">on</em></div>
-          <div class="seg" id="ent-track">
-            <button class="seg-btn active" data-v="1">track cursor</button>
-            <button class="seg-btn" data-v="0">static</button>
-          </div>
-        </div>
+
 
         <!-- FACE -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">4 · FACE</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">FACE</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Mouth</span></div>
           <select class="ent-sel" id="ent-mouth" data-key="mouth">
@@ -250,7 +245,7 @@
         </div>
 
         <!-- TORSO -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">5 · TORSO</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">TORSO</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Body</span></div>
           <select class="ent-sel" id="ent-torso" data-key="torso">
@@ -262,7 +257,7 @@
         </div>
 
         <!-- ARMS -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">6 · ARMS</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">ARMS</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Count</span><em id="ent-arms-v">0</em></div>
           <input type="range" id="ent-arms" min="0" max="8" value="0">
@@ -281,7 +276,7 @@
         </div>
 
         <!-- LEGS -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">7 · LEGS / MOVEMENT</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">LEGS / MOVEMENT</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Legs</span></div>
           <select class="ent-sel" id="ent-legs" data-key="legs">
@@ -293,7 +288,7 @@
         </div>
 
         <!-- SKIN -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">8 · SKIN</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">SKIN</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Surface</span></div>
           <select class="ent-sel" id="ent-skin" data-key="skin">
@@ -320,7 +315,7 @@
         </div>
 
         <!-- ACCESSORIES -->
-        <div class="ctrl ctrl-cat"><span class="cat-tag">9 · ACCESSORIES</span></div>
+        <div class="ctrl ctrl-cat"><span class="cat-tag">ACCESSORIES</span></div>
         <div class="ctrl">
           <div class="ctrl-label"><span>Horns</span></div>
           <select class="ent-sel" id="ent-horns" data-key="accHorns">
@@ -429,7 +424,7 @@
           <button class="btn-ghost">⏹ STOP ALL</button>
         </div>
 
-        <button class="btn-solid wide" id="audio-download-wav">↓ DOWNLOAD MIX (WAV)</button>
+        <button class="btn-solid wide" id="audio-download-wav">↓ DOWNLOAD MIX (MP3)</button>
       </div>
     </aside>
   </main>
@@ -455,11 +450,11 @@
     </div>
   </div>
 
-  <script src="background.js?v=72"></script>
-  <script src="entity.js?v=72"></script>
-  <script src="audio.js?v=72"></script>
-  <script src="lightsout3d.js?v=72"></script>
-  <script type="module" src="entity3d.js?v=72"></script>
-  <script src="app.js?v=72"></script>
+  <script src="background.js?v=75"></script>
+  <script src="entity.js?v=75"></script>
+  <script src="audio.js?v=75"></script>
+  <script src="lightsout3d.js?v=75"></script>
+  <script type="module" src="entity3d.js?v=75"></script>
+  <script src="app.js?v=75"></script>
 </body>
 </html>

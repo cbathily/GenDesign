@@ -135,7 +135,6 @@ window.addEventListener('DOMContentLoaded',()=>{
   bindEntity();
   bindEntity3D();
   bindAudio();
-  vuLoop();
 });
 
 // ---------- boot ----------
@@ -361,7 +360,8 @@ function bindEntity(){
     el.addEventListener('change',()=>{ ENT[el.dataset.key]=el.checked; dirty(); });
   });
   // segmented controls
-  bindSeg('ent-track',v=>{ENT.track=+v; $('#ent-track-v').textContent=v==='1'?'on':'off';});
+  // Eyes always track cursor — no toggle needed
+  ENT.track = 1;
   bindSeg('ent-render',v=>{ENT.render=v; setStatus('render: '+v);});
 
   bindChips('ent-presets',name=>{ entApplyPreset(name); syncEntUI(); setStatus('preset: '+name); });
@@ -525,7 +525,7 @@ function syncEntUI(){
     const el=$('#'+id); if(el) el.checked=!!ENT[el.dataset.key];
   });
   // segmented
-  $('#ent-track').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===String(ENT.track)));
+  // Eyes always track — no UI toggle
   $('#ent-render').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===ENT.render));
   $('#ent-presets').querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===ENT.preset));
 }

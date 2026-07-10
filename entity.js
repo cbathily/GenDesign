@@ -44,6 +44,8 @@ const ENT = Object.assign(
   ENT_EMPTY
 );
 
+// Always track eyes with cursor (no toggle needed)
+
 function entReset(){ Object.assign(ENT, ENT_EMPTY, {preset:'empty'}); }
 
 // true when no part has been added yet (only the empty stage shows)
