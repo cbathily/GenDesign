@@ -335,7 +335,7 @@ function l3Frame(p){
   L3.cam.projectionMatrix.elements[0] *= -1;
 
   // ---- battery drain + flicker → effective beam strength (shared with the 2D fallback) ----
-  if(!WALK.won) FLASH.batt=Math.max(0, FLASH.batt-FLASH.drain);
+  if(!WALK.won && !WALK.dead && !WALK.briefing) FLASH.batt=Math.max(0, FLASH.batt-FLASH.drain);
   let flick=1;
   if(FLASH.batt<0.28){ flick=0.55+Math.random()*0.45; if(Math.random()<0.05) flick=0.12; }
   const beam=(0.08 + 0.92*FLASH.batt)*flick;   // 0..1, never fully zero (faint dying glow)

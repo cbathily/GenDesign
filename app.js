@@ -48,6 +48,14 @@ function draw(){
 
 function mouseMoved(){ mx=mouseX; my=mouseY; }
 
+// Klick auf den Canvas startet das Spiel, wenn der HOW-TO-PLAY-Screen offen ist
+function mousePressed(){
+  if(EXPLORE.on && typeof WALK!=='undefined' && WALK.briefing &&
+     mouseX>=0 && mouseX<=width && mouseY>=0 && mouseY<=height){
+    startWalkGame();
+  }
+}
+
 // audio tab — reactive visualizer
 function drawAudioViz(pg,t){
   pg.colorMode(RGB,255);
@@ -194,19 +202,36 @@ function bindBackground(){
   bind('bg-fog','fog',v=>v.toFixed(2));
 
   bindSeg('bg-geo',v=>{BG.geo=v; setStatus('geometry: '+v);});
-  bindChips('bg-scenes',name=>{
+  // Szenen-Chips: zwei Grids (SPIELBAR + ALLE BACKGROUNDS), active-State synchron
+  const applyScene=name=>{
     exitExplore();
     bgApplyScene(name);
     syncBgUI();
     showSceneInfo(name);
+    syncSceneChips();
     const s=BG_SCENES[name];
     if(s) setStatus('scene: LEVEL '+s.level+' — '+s.title);
     BG.seed=Math.floor(Math.random()*99999); noiseSeed(BG.seed); setSeed(BG.seed);
+  };
+  $all('#bg-scenes .chip, #bg-scenes-all .chip').forEach(b=>{
+    b.addEventListener('click',()=>applyScene(b.dataset.preset));
   });
 
+  // RANDOMIZE: zufällige Szene + alle Regler + Raumstruktur durchmischen
   $('#bg-regen').addEventListener('click',()=>{
+    exitExplore();
+    const names=Object.keys(BG_SCENES);
+    bgApplyScene(names[(Math.random()*names.length)|0]);
+    BG.hue=(Math.random()*360)|0;
+    BG.depth=2+((Math.random()*13)|0);
+    BG.light=0.15+Math.random()*0.75;
+    BG.grain=Math.random()*0.8;
+    BG.fog=Math.random()*0.7;
+    const geos=['corridor','pillars','void','outdoor'];
+    BG.geo=geos[(Math.random()*geos.length)|0];
     BG.seed=Math.floor(Math.random()*99999); noiseSeed(BG.seed); setSeed(BG.seed);
-    setStatus('regenerated.');
+    syncBgUI(); showSceneInfo(BG.scene); syncSceneChips();
+    setStatus('randomized background.');
   });
   $('#bg-save').addEventListener('click',()=>saveCanvasPNG('background'));
 
@@ -237,6 +262,7 @@ function toggleExplore(){
     generateWalkWorld();
     if(typeof monsterSpawn==='function') monsterSpawn();      // gespeichertes Monster ins Level setzen
     if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
+    WALK.briefing=true;                                       // erst HOW TO PLAY lesen, dann START
     setStatus(BG.scene==='lightsout'
       ? '▶ LIGHTS OUT — find 3 keys in the dark. Batteries keep your light alive. Shine it at the thing hunting you.'
       : (SAVED_MONSTER ? '▶ EXPLORE — dein Monster ist im Level …' : '▶ EXPLORE — find 3 keys, then the EXIT'));
@@ -249,6 +275,8 @@ function bindExploreKeys(){
   window.addEventListener('keydown',e=>{
     if(!EXPLORE.on) return;
     if(e.code==='Escape'){ exitExplore(); return; }
+    // HOW-TO-PLAY-Screen: ENTER oder SPACE startet das Spiel
+    if(WALK.briefing && (e.code==='Enter'||e.code==='Space')){ startWalkGame(); e.preventDefault(); return; }
     // Game Over (alle Szenen): R startet das Level neu
     if(WALK.dead && e.code==='KeyR'){ if(typeof restartWalk==='function') restartWalk(); e.preventDefault(); return; }
     EXPLORE.keys[e.code]=true;
@@ -271,7 +299,11 @@ function syncBgUI(){
   $('#bg-depth').value=BG.depth; $('#bg-depth-v').textContent=BG.depth;
   // sync segs + scene chips
   $('#bg-geo').querySelectorAll('.seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===BG.geo));
-  $('#bg-scenes').querySelectorAll('.chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===BG.scene));
+  syncSceneChips();
+}
+// active-Markierung in BEIDEN Szenen-Grids (SPIELBAR + ALLE BACKGROUNDS)
+function syncSceneChips(){
+  $all('#bg-scenes .chip, #bg-scenes-all .chip').forEach(b=>b.classList.toggle('active',b.dataset.preset===BG.scene));
 }
 
 // ============================================================
@@ -332,7 +364,7 @@ function flashSavedBtn(sel){
   const b=$(sel); if(!b) return;
   if(b._savedTimer) clearTimeout(b._savedTimer);
   if(!b._origLabel) b._origLabel=b.textContent;
-  b.textContent='✓ GESPEICHERT — MONSTER IST IM SPIEL';
+  b.textContent='SAVED';
   b.classList.add('saved');
   b._savedTimer=setTimeout(()=>{ b.textContent=b._origLabel; b.classList.remove('saved'); b._savedTimer=null; }, 2800);
 }

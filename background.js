@@ -500,7 +500,7 @@ function lobbyBlocked(x,z){
 }
 // read keys, move the camera with per-axis collision (so you slide along walls)
 function updateExplore(){
-  if(WALK.won || WALK.dead) return;          // freeze once escaped / killed
+  if(WALK.won || WALK.dead || WALK.briefing) return;   // freeze: escaped / killed / HOW-TO-PLAY
   const k=EXPLORE.keys;
   if(k['ArrowLeft'])  EXPLORE.yaw-=EXPLORE.turn;
   if(k['ArrowRight']) EXPLORE.yaw+=EXPLORE.turn;
@@ -691,7 +691,8 @@ function drawSirenHead(pg, cx0, topY, headH, w, seed, alpha, hunt, fade){
 const WALK = { items:[], props:[], collected:0, need:3, won:false,
   // Lights Out survival layer
   hp:100, hpMax:100, dead:false,
-  hurt:0, msg:'', msgT:0, deadBy:'', introT:0 };
+  hurt:0, msg:'', msgT:0, deadBy:'',
+  briefing:false };   // true = HOW-TO-PLAY-Screen, Spiel pausiert bis START
 // the stalker entity that hunts you in Lights Out (repelled by the flashlight beam)
 const STALKER = { x:0, z:0, active:false, lit:false, hitCd:0, repel:0, seed:0 };
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -721,9 +722,8 @@ function generateWalkWorld(){
   }
   // ---- Lights Out survival setup: reset HP, build the 4-digit door code, hunt entity ----
   WALK.hp=WALK.hpMax; WALK.dead=false; WALK.deadBy='';
-  WALK.hurt=0; WALK.msg=''; WALK.msgT=0;
-  WALK.introT=540;                                   // ~9 s Kurzanleitung beim Levelstart
-  FLASH.ramp=0;                                      // Raum dunkelt nach dem Betreten langsam ein
+  WALK.hurt=0; WALK.msg=''; WALK.msgT=0; WALK.briefing=false;
+  FLASH.ramp=0;                                      // Raum dunkelt nach dem Start langsam ein
   STALKER.active=false;
   if(BG.scene==='lightsout'){
     // spawn the stalker a safe distance from the player's start
@@ -799,8 +799,10 @@ function survMsg(m){ WALK.msg=m; WALK.msgT=110; }
 // desto kleiner/schwächer der Kegel — bei 0% wird der Bildschirm komplett
 // schwarz (die Deckkraft der Dunkelheit geht auf 100%) → Game Over.
 function applyFlashlightLite(pg){
-  if(!WALK.won && !WALK.dead) FLASH.batt=Math.max(0, FLASH.batt-FLASH.drain);
-  FLASH.ramp=Math.min(1, FLASH.ramp + 1/360);                 // ~6 s Eindunkeln nach Start
+  if(!WALK.won && !WALK.dead && !WALK.briefing){
+    FLASH.batt=Math.max(0, FLASH.batt-FLASH.drain);
+    FLASH.ramp=Math.min(1, FLASH.ramp + 1/360);               // ~6 s Eindunkeln nach Start
+  }
   let flick=1;
   if(FLASH.batt<0.28){ flick=0.55+Math.random()*0.45; if(Math.random()<0.05) flick=0.12; }
   const beam=(0.05 + 0.95*FLASH.batt)*flick;
@@ -832,7 +834,7 @@ function applyFlashlightLite(pg){
 function updateSurvival(){
   if(WALK.hurt>0) WALK.hurt=Math.max(0,WALK.hurt-0.05);
   if(STALKER.hitCd>0) STALKER.hitCd--;
-  if(WALK.won || WALK.dead || !STALKER.active) return;
+  if(WALK.won || WALK.dead || WALK.briefing || !STALKER.active) return;
   const sx=STALKER.x-EXPLORE.x, sz=STALKER.z-EXPLORE.z, d=Math.hypot(sx,sz)||1;
   const s=Math.sin(EXPLORE.yaw), c=Math.cos(EXPLORE.yaw);
   const dotF=(sx/d)*s + (sz/d)*c;                                  // >0 = in front of the player
@@ -1207,7 +1209,7 @@ function monsterSpawn(){                   // beim Betreten des Levels platziere
   MONSTER.x=EXPLORE.x; MONSTER.z=EXPLORE.z+6; MONSTER.active=true;
 }
 function monsterUpdate(){                   // schleicht langsam auf den Spieler zu
-  if(!MONSTER.active || !SAVED_MONSTER || WALK.won || WALK.dead) return;
+  if(!MONSTER.active || !SAVED_MONSTER || WALK.won || WALK.dead || WALK.briefing) return;
   const dx=EXPLORE.x-MONSTER.x, dz=EXPLORE.z-MONSTER.z, d=Math.hypot(dx,dz)||1;
   if(d>1.4){
     const step=0.045, nx=MONSTER.x+(dx/d)*step, nz=MONSTER.z+(dz/d)*step;
@@ -1275,7 +1277,7 @@ function drawLightsoutWalk(pg){
   const gctx=pg.drawingContext;
 
   // ---- battery drain + flicker → effective beam strength ----
-  if(!WALK.won) FLASH.batt=Math.max(0, FLASH.batt-FLASH.drain);
+  if(!WALK.won && !WALK.dead && !WALK.briefing) FLASH.batt=Math.max(0, FLASH.batt-FLASH.drain);
   let flick=1;
   if(FLASH.batt<0.28){ flick=0.55+Math.random()*0.45; if(Math.random()<0.05) flick=0.12; }
   const beam=(0.08 + 0.92*FLASH.batt)*flick;        // 0..1
@@ -1514,7 +1516,7 @@ function drawWalkHUD(pg,cx,cy){
       pg.text('EXIT '+Math.round(dist)+'m', cx, ay+r+2); pg.textAlign(LEFT,BASELINE);
     }
   }
-  drawIntroOverlay(pg,cx,cy);
+  drawBriefingOverlay(pg,cx,cy);
   // win overlay
   if(WALK.won){
     pg.fill(0,0,0,180); pg.rect(0,0,W,H);
@@ -1545,25 +1547,40 @@ function drawGameOverOverlay(pg,cx,cy){
   pg.textAlign(LEFT,BASELINE);
 }
 
-// knappe Spielbeschreibung in den ersten Sekunden nach Levelstart
-function drawIntroOverlay(pg,cx,cy){
-  if(!WALK.introT || WALK.introT<=0 || WALK.dead || WALK.won) return;
-  WALK.introT--;
+// HOW-TO-PLAY-Screen nach ENTER LEVEL — Spiel startet erst nach START (Klick/Enter)
+function drawBriefingOverlay(pg,cx,cy){
+  if(!WALK.briefing) return;
   const W=pg.width,H=pg.height;
-  const a=Math.min(1, WALK.introT/60);                          // ausblenden am Ende
-  const lines = ['Sammle 3 SCHLÜSSEL → EXIT öffnet sich (Pfeil zeigt hin).',
-                 'Deine BATTERIE läuft ständig leer — sammle Batterien,',
-                 'sonst wird alles schwarz → GAME OVER.'];
-  if(BG.scene==='lightsout') lines.push('Licht vertreibt das Wesen. Almond Water heilt.');
-  if(SAVED_MONSTER && BG.scene!=='lightsout') lines.push('Deine Entity jagt dich — lass dich nicht fangen!');
-  const bh=34+lines.length*18, bw=Math.min(W-40, 560), bx=cx-bw/2, by=H*0.16;
   pg.noStroke();
-  pg.fill(0,0,0,190*a); pg.rect(bx,by,bw,bh,6);
+  pg.fill(0,0,0,222); pg.rect(0,0,W,H);
   pg.textAlign(CENTER,TOP); pg.textFont('monospace');
-  pg.fill(235,215,150,255*a); pg.textSize(12); pg.text('— SO FUNKTIONIERT’S —', cx, by+10);
-  pg.fill(225,220,205,255*a); pg.textSize(11);
-  lines.forEach((ln,i)=>pg.text(ln, cx, by+30+i*18));
+  const y0=H*0.13;
+  pg.fill(235,215,150); pg.textSize(28); pg.text('HOW TO PLAY', cx, y0);
+  const blocks=[
+    ['🔑  Collect 3 Keys to unlock the Exit.', '(The arrow points the way.)'],
+    ['🔋  Keep your Battery charged.', 'If it runs out, everything goes dark… Game Over.'],
+    ['👁  Avoid the Entity.', "If it catches you, you're dead."],
+  ];
+  let y=y0+58;
+  for(const [head,sub] of blocks){
+    pg.fill(228,222,205); pg.textSize(15); pg.text(head, cx, y);
+    pg.fill(165,158,140); pg.textSize(12); pg.text(sub, cx, y+21);
+    y+=54;
+  }
+  pg.fill(235,215,150); pg.textSize(14); pg.text('Good luck.', cx, y+4);
+  // START-Button (Klick auf Canvas oder ENTER)
+  const bw=190, bh=46, bx=cx-bw/2, by=y+40;
+  const pulse=0.85+0.15*Math.sin(frameCount*0.08);
+  pg.fill(217*pulse,194*pulse,58*pulse); pg.rect(bx,by,bw,bh,5);
+  pg.fill(22,17,6); pg.textSize(20); pg.textAlign(CENTER,CENTER); pg.text('START', cx, by+bh/2);
+  pg.fill(150,142,120); pg.textSize(11); pg.textAlign(CENTER,TOP);
+  pg.text('click or press ENTER', cx, by+bh+10);
   pg.textAlign(LEFT,BASELINE);
+}
+function startWalkGame(){
+  if(!WALK.briefing) return false;
+  WALK.briefing=false;
+  return true;
 }
 // Lights Out survival HUD: HP, objective/code progress, keypad, hurt flash, death/win
 function drawSurvivalHUD(pg,cx,cy){
@@ -1607,7 +1624,7 @@ function drawSurvivalHUD(pg,cx,cy){
   // transient message
   if(WALK.msgT>0 && WALK.msg){ pg.fill(235,230,210, Math.min(255, WALK.msgT*5)); pg.textSize(13);
     pg.textAlign(CENTER,CENTER); pg.text(WALK.msg, cx, cy-H*0.16); pg.textAlign(LEFT,BASELINE); }
-  drawIntroOverlay(pg,cx,cy);
+  drawBriefingOverlay(pg,cx,cy);
   drawGameOverOverlay(pg,cx,cy);
   // win overlay
   if(WALK.won){
@@ -1829,6 +1846,7 @@ function detailPlayplace(pg,cx,cy,t){
     pg.stroke(c[0],c[1],c[2],90);
     pg.arc(cx + (a-1)*W*0.28, cy+H*0.05, W*0.4, W*0.4, PI+0.4, TWO_PI-0.4);
   }
+  pg.strokeWeight(1);   // fetten Tube-Stroke zurücksetzen — leckte sonst in andere Szenen
   pg.noStroke();
   // ball pit filling lower third
   const top = H*0.62;
