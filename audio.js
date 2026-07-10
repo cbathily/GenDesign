@@ -421,9 +421,43 @@ function initAudio() {
     actionRow.appendChild(stopAllBtn);
   }
 
+  // "save current mix → use in game" button (same logic as SAVE MONSTER → INS SPIEL)
+  const panel = document.querySelector('[data-panel="audio"]');
+  if (panel && !panel.querySelector('#audio-save-game')) {
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-solid wide';
+    saveBtn.id = 'audio-save-game';
+    saveBtn.textContent = 'SAVE MUSIC → INS SPIEL';
+    saveBtn.onclick = saveGameAudio;
+    panel.appendChild(saveBtn);
+  }
+
   updateStatus();
   log('✓ Audio system ready');
 }
+
+// ---- save the current mix as the in-game atmosphere (mirrors SAVED_MONSTER) ----
+window.SAVED_GAME_AUDIO = null;   // [{file,name,volume} | null] × 3
+function saveGameAudio() {
+  const snapshot = AUDIO_STATE.layers.map((l, i) =>
+    l ? { file: l.file, name: l.name, volume: AUDIO_STATE.volumes[i] } : null);
+  if (!snapshot.some(Boolean)) {
+    if (typeof setStatus === 'function') setStatus('leer — erst eine Atmosphäre generieren.');
+    return;
+  }
+  window.SAVED_GAME_AUDIO = snapshot;
+  if (typeof flashSavedBtn === 'function') flashSavedBtn('#audio-save-game');
+  if (typeof setStatus === 'function') setStatus('Musik gespeichert — spielt im Walk-Modus (Background-Tab → ENTER LEVEL).');
+}
+// (re)start the saved mix — called when the player enters walk mode
+function playGameAudio() {
+  const mix = window.SAVED_GAME_AUDIO;
+  if (!mix || !mix.some(Boolean)) return;
+  stopAllLayers();
+  mix.forEach((l, i) => { if (l) { playSound(l.file, l.name, i); setVolume(i, l.volume); } });
+}
+window.saveGameAudio = saveGameAudio;
+window.playGameAudio = playGameAudio;
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initAudio);

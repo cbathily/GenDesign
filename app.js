@@ -234,6 +234,7 @@ function bindBackground(){
     setStatus('randomized background.');
   });
   $('#bg-save').addEventListener('click',()=>saveCanvasPNG('background'));
+  $('#bg-save-scene').addEventListener('click',saveComposite);
 
   const walkBtn=$('#bg-walk');
   if(walkBtn){
@@ -261,6 +262,7 @@ function toggleExplore(){
     FLASH.batt=1.0;
     generateWalkWorld();
     if(typeof monsterSpawn==='function') monsterSpawn();      // gespeichertes Monster ins Level setzen
+    if(typeof playGameAudio==='function') playGameAudio();    // gespeicherte Musik ins Level setzen
     if(typeof lightsout3dInvalidate==='function') lightsout3dInvalidate();
     WALK.briefing=true;                                       // erst HOW TO PLAY lesen, dann START
     setStatus(BG.scene==='lightsout'
@@ -520,4 +522,51 @@ function saveCanvasPNG(name){
   const ts=Date.now().toString().slice(-6);
   saveCanvas(pgCanvas, `liminal_${name}_${ts}`, 'png');
   setStatus('saved PNG.');
+}
+
+// Combine the built BACKGROUND with the built ENTITY into one image and download it.
+// Renders the background scene, then composites the entity sprite (build or 3D model)
+// standing in it. Mirrors the sprite/bbox approach used by saveMonster().
+function saveComposite(){
+  const W=pgCanvas.width, H=pgCanvas.height;
+  const scene=createGraphics(W,H); scene.pixelDensity(1);
+  drawBackground(scene, frameCount*0.01);              // the built background (incl. grain+vignette)
+
+  // get the entity as a sprite canvas + bounding box (3D model if in 3D view, else the build)
+  let cv=null, bx=0,by=0,bw=0,bh=0, entBuf=null;
+  if(ENT_VIEW==='3d' && typeof window.getModelSpriteCanvas==='function'){
+    const c=window.getModelSpriteCanvas(ENT3D_MODEL);
+    if(c && c.width>0){ cv=c; bw=c.width; bh=c.height; }
+  }
+  if(!cv){
+    const SW=480,SH=660; entBuf=createGraphics(SW,SH); entBuf.pixelDensity(1); entBuf.clear();
+    drawEntity(entBuf, SW/2, SH*0.4, true);            // spriteMode → transparent, no FX
+    entBuf.loadPixels(); const px=entBuf.pixels;
+    let minX=SW,minY=SH,maxX=0,maxY=0,found=false;
+    for(let y=0;y<SH;y++) for(let x=0;x<SW;x++){
+      if(px[(y*SW+x)*4+3]>16){ found=true;
+        if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+    }
+    if(found){ cv=entBuf.canvas; bx=minX; by=minY; bw=maxX-minX+1; bh=maxY-minY+1; }
+  }
+
+  if(cv && bw>0 && bh>0){
+    const targetH=H*0.52, targetW=targetH*(bw/bh);
+    const dx=W/2-targetW/2, footY=H*0.74, dy=footY-targetH;
+    const g=scene.drawingContext;
+    g.save();
+    g.globalAlpha=0.4; g.fillStyle='#000';             // soft contact shadow
+    g.beginPath(); g.ellipse(W/2, footY, targetW*0.34, targetW*0.08, 0, 0, Math.PI*2); g.fill();
+    g.globalAlpha=1; g.drawImage(cv, bx,by,bw,bh, dx,dy,targetW,targetH);
+    g.restore();
+  } else {
+    setStatus('keine Entity vorhanden — erst eine bauen/wählen.');
+    scene.remove(); if(entBuf) entBuf.remove(); return;
+  }
+
+  const ts=Date.now().toString().slice(-6);
+  saveCanvas(scene, `liminal_scene_${ts}`, 'png');
+  flashSavedBtn('#bg-save-scene');
+  setStatus('Szene gespeichert (Background + Entity) als PNG.');
+  scene.remove(); if(entBuf) entBuf.remove();
 }
