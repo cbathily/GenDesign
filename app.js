@@ -286,11 +286,7 @@ function bindExploreKeys(){
 }
 
 // update the LEVEL plate + description for a scene
-function showSceneInfo(name){
-  const s=BG_SCENES[name]; if(!s) return;
-  $('#bg-scene-level').innerHTML='<span class="lvl-tag">LEVEL '+s.level+'</span> '+s.title;
-  $('#bg-scene-desc').textContent=s.desc;
-}
+function showSceneInfo(name){ /* Beschreibungs-Panel entfernt — Name/Nummer stehen auf den Karten */ }
 function syncBgUI(){
   $('#bg-hue').value=BG.hue; $('#bg-hue-v').textContent=Math.round(BG.hue);
   $('#bg-light').value=BG.light*100; $('#bg-light-v').textContent=BG.light.toFixed(2);

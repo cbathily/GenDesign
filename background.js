@@ -74,13 +74,13 @@ const BG_SCENES = {
     geo:'open', detail:'cave', hue:30, light:0.32, fog:0.42, grain:0.46,
   },
   pool: {
-    label: 'Poolrooms', level: '37', title: 'The Poolrooms',
+    label: 'Poolrooms', level: '10', title: 'The Poolrooms',
     desc:  'Verlassene, gekachelte Wasserwelten in sanft beleuchtetem, klarem Wasser.',
     pal: { wall:[124,196,210], floor:[80,166,200], ceil:[150,206,216], light:[236,252,255] },
     geo:'corridor', detail:'pool', hue:190, light:0.72, fog:0.30, grain:0.28,
   },
   playplace: {
-    label: 'Playplace', level: 'Fun', title: 'Level Fun =)',
+    label: 'Playplace', level: '11', title: 'Playplace',
     desc:  'Regenbogen-Spielzone: Bällebad, Plastikröhren, falsche Fröhlichkeit.',
     pal: { wall:[150,162,170], floor:[120,152,96], ceil:[172,176,188], light:[255,242,212] },
     geo:'void', detail:'playplace', hue:140, light:0.78, fog:0.18, grain:0.34,
@@ -92,7 +92,7 @@ const BG_SCENES = {
     geo:'outdoor', detail:'suburb', hue:8, light:0.36, fog:0.40, grain:0.42,
   },
   dreamcore: {
-    label: 'Dreamcore Void', level: '∞', title: 'Dreamcore',
+    label: 'Dreamcore Void', level: '12', title: 'Dreamcore',
     desc:  'Weicher rosa Nebelraum, Nostalgie und Unbehagen, kaum greifbare Wände.',
     pal: { wall:[212,152,182], floor:[182,150,172], ceil:[202,170,202], light:[255,212,236] },
     geo:'void', detail:'dream', hue:320, light:0.70, fog:0.46, grain:0.30,
@@ -714,9 +714,8 @@ function generateWalkWorld(){
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'chair',x:p.x,z:p.z}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'puddle',x:p.x,z:p.z}); }
   const ep=placeOpen(18,28)||{x:0,z:22}; WALK.items.push({type:'exit',x:ep.x,z:ep.z});
-  // Lights Out: Almond Water als Heilung + Kisten-Props
+  // Lights Out: Kisten-Props als Deckung/Deko
   if(BG.scene==='lightsout'){
-    for(let n=0;n<4;n++){ const p=placeOpen(5,22); if(p) WALK.items.push({type:'almond',x:p.x,z:p.z,taken:false}); }
     const T=['crate','stack','barrel','shelf','boxes','cone','crate','boxes'];
     for(let n=0;n<26;n++){ const p=placeOpen(3,27); if(p) WALK.props.push({type:T[(rnd()*T.length)|0], x:p.x, z:p.z}); }
   }
@@ -724,13 +723,7 @@ function generateWalkWorld(){
   WALK.hp=WALK.hpMax; WALK.dead=false; WALK.deadBy='';
   WALK.hurt=0; WALK.msg=''; WALK.msgT=0; WALK.briefing=false;
   FLASH.ramp=0;                                      // Raum dunkelt nach dem Start langsam ein
-  STALKER.active=false;
-  if(BG.scene==='lightsout'){
-    // spawn the stalker a safe distance from the player's start
-    const sa=rnd()*Math.PI*2;
-    STALKER.x=EXPLORE.x+Math.sin(sa)*14; STALKER.z=EXPLORE.z+Math.cos(sa)*14;
-    STALKER.active=true; STALKER.lit=false; STALKER.hitCd=0; STALKER.repel=0; STALKER.seed=rnd()*1000;
-  }
+  STALKER.active=false;   // Stalker entfernt — die einzige Entity ist das eigene gespeicherte Monster
 }
 // BFS through the open cells from the player's start to the exit; drop directional
 // markers along the route so the player can follow the trail to the door.
@@ -1582,29 +1575,15 @@ function startWalkGame(){
   WALK.briefing=false;
   return true;
 }
-// Lights Out survival HUD: HP, objective/code progress, keypad, hurt flash, death/win
+// Lights Out HUD: Keys, Exit-Kompass, Meldungen, Overlays (Stalker/HP entfernt)
 function drawSurvivalHUD(pg,cx,cy){
   const W=pg.width,H=pg.height; pg.textFont('monospace'); pg.noStroke();
-  // hurt flash (red) when the stalker lands a hit
-  if(WALK.hurt>0){ pg.fill(150,0,0, 150*WALK.hurt); pg.rect(0,0,W,H); }
-  // HP bar (top-left)
-  const hx=20, hy=24, hw=160, hh=13, frac=WALK.hp/WALK.hpMax;
-  pg.fill(0,0,0,150); pg.rect(hx-3,hy-3,hw+6,hh+6);
-  pg.fill(48,16,16); pg.rect(hx,hy,hw,hh);
-  pg.fill(frac>0.4?210:235, 50, 50); pg.rect(hx,hy,hw*frac,hh);
-  pg.fill(235,205,205); pg.textSize(10); pg.textAlign(LEFT,TOP); pg.text('HP '+Math.ceil(WALK.hp), hx, hy+hh+4);
-  // objective (top-left, below HP)
+  // objective (top-left)
   const unlocked=WALK.collected>=WALK.need;
-  pg.textSize(12);
-  pg.fill(235,190,80); pg.text('◇ KEYS  '+WALK.collected+' / '+WALK.need, 20, hy+hh+22);
+  pg.textSize(12); pg.textAlign(LEFT,TOP);
+  pg.fill(235,190,80); pg.text('◇ KEYS  '+WALK.collected+' / '+WALK.need, 20, 26);
   pg.fill(unlocked?[80,230,140]:[210,90,80]);
-  pg.text(unlocked?'◇ EXIT  UNLOCKED — follow the arrow':'◇ EXIT  LOCKED — find the keys', 20, hy+hh+40);
-  // stalker proximity warning
-  if(STALKER.active && !WALK.won && !WALK.dead){
-    const d=distXZ(STALKER.x,STALKER.z,EXPLORE.x,EXPLORE.z);
-    if(d<6 && !STALKER.lit){ pg.fill(220,40,40, 160+Math.sin(frameCount*0.5)*60); pg.textSize(13);
-      pg.textAlign(CENTER,TOP); pg.text('!! IT IS NEAR — SHINE YOUR LIGHT !!', cx, 14); pg.textAlign(LEFT,BASELINE); }
-  }
+  pg.text(unlocked?'◇ EXIT  UNLOCKED — follow the arrow':'◇ EXIT  LOCKED — find the keys', 20, 44);
   // exit compass — arrow pointing toward the door + distance
   if(!WALK.won && !WALK.dead){
     const exit=WALK.items.find(it=>it.type==='exit');
@@ -1728,6 +1707,12 @@ function drawOutdoor(pg,cx,cy,wall,floor,ceil,lite,t){
    ============================================================ */
 function bgDrawDetail(pg, kind, cx, cy, wall, floor, ceil, lite, t){
   const W=pg.width,H=pg.height;
+  pg.push();   // Zeichenzustand kapseln — kein Detail darf stroke/fill in andere Szenen leaken
+  try{ bgDrawDetailInner(pg,kind,cx,cy,wall,floor,ceil,lite,t); }
+  catch(e){ console.warn('[detail] '+kind+':', e); }
+  pg.pop();
+}
+function bgDrawDetailInner(pg, kind, cx, cy, wall, floor, ceil, lite, t){
   switch(kind){
     case 'lobby':      detailLobby(pg,cx,cy,wall,lite); break;
     case 'pipes_v':    detailPipesV(pg,cx,cy,wall,lite); break;
