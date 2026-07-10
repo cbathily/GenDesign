@@ -40,7 +40,7 @@ function draw(){
     }
     else drawBackground(this,t);
   } else if(activeTab==='entity'){
-    drawEntity(this, mx, my);
+    if(ENT_VIEW!=='3d') drawEntity(this, mx, my);   // im 3D-Modus rendert entity3d.js sein eigenes Overlay-Canvas
   } else {
     drawAudioViz(this,t);
   }
@@ -124,6 +124,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   bindTabs();
   bindBackground();
   bindEntity();
+  bindEntity3D();
   bindAudio();
   vuLoop();
 });
@@ -165,6 +166,7 @@ function bindTabs(){
       $(`.panel-page[data-panel="${activeTab}"]`).classList.add('active');
       const labels={background:'SIGNAL // BACKGROUND',entity:'SIGNAL // ENTITY',audio:'SIGNAL // AUDIO'};
       $('#stage-label').textContent=labels[activeTab];
+      syncEnt3DCanvas();   // 3D-Overlay nur im Entity-Tab (und nur im 3D-Modus) zeigen
       setStatus(activeTab+' module loaded.');
     });
   });
@@ -401,6 +403,99 @@ function saveMonster(){
   SAVED_MONSTER={ img:buf.canvas, box:{minX,minY,w:maxX-minX+1,h:maxY-minY+1} };
   if(EXPLORE.on && typeof monsterSpawn==='function') monsterSpawn();   // sofort sichtbar, falls schon im Walk
   setStatus('💾 Monster gespeichert — erscheint im Walk-Modus (Background-Tab → ENTER LEVEL).');
+}
+
+// ============================================================
+//  ENTITY 3D — vorgefertigte GLB-Modelle (entity3d.js, Katharina)
+//  Umschalter EIGENBAU / 3D-MODELLE im Entity-Tab.
+// ============================================================
+let ENT_VIEW = 'build';        // 'build' = eigener Baukasten, '3d' = GLB-Viewer
+let ENT3D_MODEL = 'bacteria';  // aktuell gewähltes Modell
+
+// slider id -> ENT3D key (window.ENT3D wird von entity3d.js gelesen)
+const E3_SLIDERS = {
+  'e3-height': 'bodyHeight',
+  'e3-width':  'bodyWidth',
+  'e3-arms':   'addArms',
+  'e3-legs':   'addLegs',
+  'e3-eyes':   'eyes',
+  'e3-hue':    'colorHue',
+  'e3-sat':    'colorSat',
+};
+
+function syncEnt3DCanvas(){
+  const c3=$('#ent3d-canvas'); if(!c3) return;
+  c3.style.display = (activeTab==='entity' && ENT_VIEW==='3d') ? 'block' : 'none';
+}
+
+function setEntView(v){
+  ENT_VIEW=v;
+  $('#ent-build-controls').style.display = v==='3d' ? 'none' : '';
+  $('#ent-3d-controls').style.display    = v==='3d' ? '' : 'none';
+  syncEnt3DCanvas();
+  if(v==='3d'){
+    const c3=$('#ent3d-canvas');
+    if(window.init3D){
+      window.init3D(c3);                 // einmalig — init3D ignoriert weitere Aufrufe
+      window.setModel3D(ENT3D_MODEL);
+      setStatus('3D-Modell-Viewer — ziehen zum Drehen.');
+    } else {
+      setStatus('3D-Modul lädt noch … gleich nochmal klicken.');
+    }
+  } else {
+    setStatus('Eigenbau-Modus — bau deine Entity.');
+  }
+}
+
+function bindEntity3D(){
+  bindSeg('ent-view', setEntView);
+
+  // Modell-Chips (eigenes data-model-Attribut, daher nicht über bindChips)
+  $all('#ent3d-models .chip').forEach(ch=>{
+    ch.addEventListener('click',()=>{
+      $all('#ent3d-models .chip').forEach(c=>c.classList.remove('active'));
+      ch.classList.add('active');
+      ENT3D_MODEL=ch.dataset.model;
+      if(window.setModel3D) window.setModel3D(ENT3D_MODEL);
+    });
+  });
+
+  // Parameter-Slider -> window.ENT3D + live anwenden
+  for(const id in E3_SLIDERS){
+    const el=$('#'+id), out=$('#'+id+'-v');
+    if(!el) continue;
+    el.addEventListener('input',()=>{
+      window.ENT3D = window.ENT3D || {};
+      window.ENT3D[E3_SLIDERS[id]] = +el.value;
+      if(out) out.textContent=el.value;
+      if(window.apply3DParams) window.apply3DParams();
+    });
+  }
+
+  $('#ent3d-save-monster').addEventListener('click',save3DMonster);
+}
+
+// 3D-Modell als transparenten Sprite rendern und als Spiel-Monster
+// registrieren (gleiches SAVED_MONSTER-System wie der Eigenbau).
+function save3DMonster(){
+  if(!window.getModelSpriteCanvas){ setStatus('3D-Modul lädt noch …'); return; }
+  const src=window.getModelSpriteCanvas(ENT3D_MODEL);
+  if(!src){ setStatus('Modell lädt noch — gleich nochmal versuchen.'); return; }
+  // Snapshot (das Live-Canvas wird weiterverwendet)
+  const snap=document.createElement('canvas');
+  snap.width=src.width; snap.height=src.height;
+  const g=snap.getContext('2d'); g.drawImage(src,0,0);
+  // Bounding-Box der nicht-transparenten Pixel
+  const d=g.getImageData(0,0,snap.width,snap.height).data;
+  let minX=snap.width,minY=snap.height,maxX=0,maxY=0,found=false;
+  for(let y=0;y<snap.height;y++) for(let x=0;x<snap.width;x++){
+    if(d[(y*snap.width+x)*4+3]>16){ found=true;
+      if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
+  }
+  if(!found){ setStatus('Sprite leer — Monster nicht gespeichert.'); return; }
+  SAVED_MONSTER={ img:snap, box:{minX,minY,w:maxX-minX+1,h:maxY-minY+1} };
+  if(EXPLORE.on && typeof monsterSpawn==='function') monsterSpawn();
+  setStatus('💾 3D-Monster gespeichert — erscheint im Walk-Mode (Background-Tab → ENTER LEVEL).');
 }
 
 // light prompt -> preset / field mapping

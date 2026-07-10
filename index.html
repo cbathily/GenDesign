@@ -12,6 +12,15 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Modul-Three.js für entity3d.js (GLB-Viewer) — separat vom globalen r128 für lightsout3d.js -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
   <div id="boot-screen">
@@ -45,7 +54,10 @@
     <!-- ============ STAGE / CANVAS ============ -->
     <section class="stage">
       <div class="stage-frame">
-        <div id="canvas-host"></div>
+        <div id="canvas-host">
+          <!-- Overlay-Canvas für den 3D-Modell-Viewer (entity3d.js) -->
+          <canvas id="ent3d-canvas"></canvas>
+        </div>
         <div class="stage-overlay">
           <span class="stage-label" id="stage-label">SIGNAL // BACKGROUND</span>
           <span class="stage-rec">● REC</span>
@@ -139,6 +151,15 @@
           <p>Spielfiguren & Monster. Augen die zurückstarren.</p>
         </div>
 
+        <!-- Ansicht: eigener Baukasten vs. vorgefertigte 3D-Modelle -->
+        <div class="ctrl">
+          <div class="seg" id="ent-view">
+            <button class="seg-btn active" data-v="build">🛠 EIGENBAU</button>
+            <button class="seg-btn" data-v="3d">🗿 3D-MODELLE</button>
+          </div>
+        </div>
+
+        <div id="ent-build-controls">
         <div class="prompt-row">
           <label>PROMPT / WESEN</label>
           <input type="text" id="ent-prompt" placeholder="z.B. tall watcher, many eyes, thin limbs" value="eyed blob creature">
@@ -352,6 +373,50 @@
           <button class="btn-ghost" id="ent-regen">⟳ REGENERATE</button>
           <button class="btn-solid" id="ent-save">↓ SAVE PNG</button>
         </div>
+        </div><!-- /ent-build-controls -->
+
+        <!-- 3D-MODELLE (vorgefertigte GLBs, entity3d.js) -->
+        <div id="ent-3d-controls" style="display:none">
+          <div class="preset-row" id="ent3d-models">
+            <button class="chip active" data-model="bacteria">bacteria</button>
+            <button class="chip" data-model="papermask">paper mask</button>
+            <button class="chip" data-model="pennywise">pennywise</button>
+          </div>
+          <div class="ent-3d-hint" id="ent-3d-label">BACTERIA — KANE PIXELS</div>
+
+          <div class="ctrl-sep"><span>Modell anpassen</span></div>
+          <div class="ctrl">
+            <div class="ctrl-label"><span>Höhe</span><em id="e3-height-v">100</em></div>
+            <input type="range" id="e3-height" min="50" max="200" value="100">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label"><span>Breite</span><em id="e3-width-v">100</em></div>
+            <input type="range" id="e3-width" min="50" max="200" value="100">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label"><span>Extra-Arme</span><em id="e3-arms-v">0</em></div>
+            <input type="range" id="e3-arms" min="0" max="6" value="0">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label"><span>Extra-Beine</span><em id="e3-legs-v">0</em></div>
+            <input type="range" id="e3-legs" min="0" max="6" value="0">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label"><span>Augen</span><em id="e3-eyes-v">0</em></div>
+            <input type="range" id="e3-eyes" min="0" max="12" value="0">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label"><span>Farbton</span><em id="e3-hue-v">0</em></div>
+            <input type="range" id="e3-hue" min="0" max="360" value="0">
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-label"><span>Farb-Intensität</span><em id="e3-sat-v">0</em></div>
+            <input type="range" id="e3-sat" min="0" max="100" value="0">
+          </div>
+
+          <button class="btn-solid wide" id="ent3d-save-monster">💾 SAVE MONSTER → INS SPIEL</button>
+          <div class="ent-3d-hint">Ziehen = drehen · Scrollen = zoomen. Läuft nur über einen lokalen Server (nicht file://).</div>
+        </div>
       </div>
 
       <!-- AUDIO PANEL: Horror Atmosphere Mixer -->
@@ -373,7 +438,7 @@
   <script src="entity.js?v=64"></script>
   <script src="audio.js?v=64"></script>
   <script src="lightsout3d.js?v=64"></script>
-  <script src="entity3d.js?v=64"></script>
+  <script type="module" src="entity3d.js?v=64"></script>
   <script src="app.js?v=64"></script>
 </body>
 </html>
