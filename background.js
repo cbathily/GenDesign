@@ -447,7 +447,9 @@ function drawConcreteColumn(pg,proj,b,CY,FY,wall,lite,farZ){
    jede Zelle (i,j) trägt evtl. einen Wandblock (per noise).
    ============================================================ */
 const EXPLORE = { on:false, x:0, z:0, yaw:0, speed:0.11, turn:0.045, keys:{} };
-const FLASH = { batt:1.0, drain:0.0003, beam:1 };   // Taschenlampen-Batterie (alle Walk-Level, ~55 s pro Ladung)
+// Taschenlampen-Batterie (alle Walk-Level): entlädt sich pro Frame — auch im Stillstand.
+// ramp = Eindunkeln nach Levelstart (0 → 1 über ~6 s)
+const FLASH = { batt:1.0, drain:0.0015, beam:1, ramp:0 };   // ~11 s pro Ladung → Batterien sind Pflicht
 const LOBBY_CS = 2.7;            // grid cell size (block spacing)
 const LOBBY_CY = -1.15, LOBBY_FY = 1.0;
 
@@ -707,7 +709,7 @@ function generateWalkWorld(){
   };
   // Schlüssel öffnen den EXIT (alle Szenen) — Batterien halten das Licht am Leben
   for(let n=0;n<6;n++){ const p=placeOpen(5,22); if(p) WALK.items.push({type:'key',x:p.x,z:p.z,taken:false}); }
-  for(let n=0;n<5;n++){ const p=placeOpen(5,26); if(p) WALK.items.push({type:'battery',x:p.x,z:p.z,taken:false}); }
+  for(let n=0;n<10;n++){ const p=placeOpen(4,26); if(p) WALK.items.push({type:'battery',x:p.x,z:p.z,taken:false}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'chair',x:p.x,z:p.z}); }
   for(let n=0;n<5;n++){ const p=placeOpen(3,24); if(p) WALK.items.push({type:'puddle',x:p.x,z:p.z}); }
   const ep=placeOpen(18,28)||{x:0,z:22}; WALK.items.push({type:'exit',x:ep.x,z:ep.z});
@@ -721,6 +723,7 @@ function generateWalkWorld(){
   WALK.hp=WALK.hpMax; WALK.dead=false; WALK.deadBy='';
   WALK.hurt=0; WALK.msg=''; WALK.msgT=0;
   WALK.introT=540;                                   // ~9 s Kurzanleitung beim Levelstart
+  FLASH.ramp=0;                                      // Raum dunkelt nach dem Betreten langsam ein
   STALKER.active=false;
   if(BG.scene==='lightsout'){
     // spawn the stalker a safe distance from the player's start
@@ -785,26 +788,32 @@ function updateWalkWorld(){
     }
   }
   if(WALK.msgT>0) WALK.msgT--;
+  // Batterie leer → Licht ist aus → Dunkelheit holt dich (alle Szenen)
+  if(FLASH.batt<=0 && !WALK.won && !WALK.dead){ WALK.dead=true; WALK.deadBy='dark'; }
   if(surv) updateSurvival();
 }
 function survMsg(m){ WALK.msg=m; WALK.msgT=110; }
 // Dunkelheit + Taschenlampen-Sicht für Lobby/Habitable:
-// Raum ist leicht dunkel, der Blick des Spielers wird vom Lichtkegel erhellt.
-// Je leerer die Batterie, desto kleiner/schwächer der Kegel (+ Flackern).
+// Nach dem Betreten dunkelt der Raum langsam ein (ramp 0 → 1 über ~6 s).
+// Die Batterie entlädt sich pro Frame (auch im Stillstand). Je leerer sie ist,
+// desto kleiner/schwächer der Kegel — bei 0% wird der Bildschirm komplett
+// schwarz (die Deckkraft der Dunkelheit geht auf 100%) → Game Over.
 function applyFlashlightLite(pg){
   if(!WALK.won && !WALK.dead) FLASH.batt=Math.max(0, FLASH.batt-FLASH.drain);
+  FLASH.ramp=Math.min(1, FLASH.ramp + 1/360);                 // ~6 s Eindunkeln nach Start
   let flick=1;
   if(FLASH.batt<0.28){ flick=0.55+Math.random()*0.45; if(Math.random()<0.05) flick=0.12; }
-  const beam=(0.08 + 0.92*FLASH.batt)*flick;
+  const beam=(0.05 + 0.95*FLASH.batt)*flick;
   FLASH.beam=beam;
   const W=pg.width,H=pg.height,cx=W/2,cy=H*0.5,g=pg.drawingContext;
   const bob=Math.sin(frameCount*0.11)*H*0.012;
-  const reach=W*(0.26 + 0.34*beam), inner=W*0.07;
-  const dark=0.86 - 0.42*beam;                 // volle Batterie ≈ 0.47 dunkel, leer ≈ 0.86
+  const black=Math.pow(1-FLASH.batt, 3);                      // 0 → 1 wenn die Batterie stirbt
+  const reach=W*(0.10 + 0.50*beam), inner=W*0.07*beam;
+  const dark=FLASH.ramp*Math.min(1, 0.55 + 0.45*black);       // Rand: 0.55 → 1.0 (voll schwarz)
   g.save();
   const m=g.createRadialGradient(cx,cy+bob,inner, cx,cy+bob,reach);
   m.addColorStop(0,'rgba(0,0,0,0)');
-  m.addColorStop(0.55,`rgba(0,0,0,${dark*0.5})`);
+  m.addColorStop(0.55,`rgba(0,0,0,${dark*0.55})`);
   m.addColorStop(1,`rgba(2,2,4,${dark})`);
   g.fillStyle=m; g.fillRect(0,0,W,H);
   // warmer Kern, damit es wie eine Taschenlampe wirkt
@@ -812,6 +821,10 @@ function applyFlashlightLite(pg){
   const wl=g.createRadialGradient(cx,cy+bob,0, cx,cy+bob,reach*0.55);
   wl.addColorStop(0,`rgba(255,244,214,${0.10*beam})`); wl.addColorStop(1,'rgba(0,0,0,0)');
   g.fillStyle=wl; g.fillRect(0,0,W,H);
+  // Blackout-Layer: dunkelt AUCH den Kegel-Kern ab — bei 0% Batterie 100% schwarz
+  g.globalCompositeOperation='source-over';
+  const blackAll=FLASH.ramp*black;
+  if(blackAll>0.01){ g.fillStyle=`rgba(0,0,0,${blackAll})`; g.fillRect(0,0,W,H); }
   g.restore();
 }
 // the stalker: creeps toward you in the dark, is pushed back when caught in the beam,
@@ -1524,7 +1537,10 @@ function drawGameOverOverlay(pg,cx,cy){
   pg.textAlign(CENTER,CENTER); pg.textFont('monospace');
   pg.fill(255,235,230); pg.textSize(42+pulse*0.2); pg.text('GAME OVER', cx, cy-20);
   pg.fill(255,190,180); pg.textSize(13);
-  pg.text(WALK.deadBy==='entity' ? 'deine Entity hat dich erwischt' : 'the dark took you', cx, cy+16);
+  const cause = WALK.deadBy==='entity' ? 'deine Entity hat dich erwischt'
+              : WALK.deadBy==='dark'   ? 'das Licht ist ausgegangen — keine Batterie mehr'
+              : 'the dark took you';
+  pg.text(cause, cx, cy+16);
   pg.fill(255,215,205); pg.textSize(12); pg.text('R = neu starten   ·   ESC = verlassen', cx, cy+44);
   pg.textAlign(LEFT,BASELINE);
 }
@@ -1536,7 +1552,8 @@ function drawIntroOverlay(pg,cx,cy){
   const W=pg.width,H=pg.height;
   const a=Math.min(1, WALK.introT/60);                          // ausblenden am Ende
   const lines = ['Sammle 3 SCHLÜSSEL → EXIT öffnet sich (Pfeil zeigt hin).',
-                 'Deine Sicht = Taschenlampe. BATTERIEN sammeln = Licht behalten.'];
+                 'Deine BATTERIE läuft ständig leer — sammle Batterien,',
+                 'sonst wird alles schwarz → GAME OVER.'];
   if(BG.scene==='lightsout') lines.push('Licht vertreibt das Wesen. Almond Water heilt.');
   if(SAVED_MONSTER && BG.scene!=='lightsout') lines.push('Deine Entity jagt dich — lass dich nicht fangen!');
   const bh=34+lines.length*18, bw=Math.min(W-40, 560), bx=cx-bw/2, by=H*0.16;
